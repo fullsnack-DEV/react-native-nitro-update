@@ -1,0 +1,72 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'NitroUpdateExample' do
+  config = use_native_modules!
+  # Resolve NitroUpdate's dependency on the Swift-only bundle manager (avoids C++ in app target)
+  pod 'NitroUpdateBundleManager', :path => '../../node_modules/react-native-nitro-update'
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+    # Ensure C++ stdlib is available for pods that use C++ (e.g. NitroModules Null.hpp)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+        config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+      end
+      # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
+      if target.name == 'Pods-NitroUpdateExample'
+        target.source_build_phase.files.each do |f|
+          if f.file_ref && f.file_ref.path&.end_with?('.m')
+            f.settings ||= {}
+            f.settings['COMPILER_FLAGS'] = '-x objective-c++'
+          end
+        end
+      end
+    end
+    installer.generated_projects.each do |project|
+      project.targets.each do |target|
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+          config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+        end
+      end
+    end
+    # App target: ensure C++ when it pulls in pod headers
+    app_project_path = File.join(Pod::Config.instance.installation_root, '..', 'NitroUpdateExample.xcodeproj')
+    if File.exist?(app_project_path)
+      app_project = Xcodeproj::Project.open(app_project_path)
+      app_project.native_targets.each do |target|
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+          config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+        end
+      end
+      app_project.save
+    end
+  end
+end
