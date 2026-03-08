@@ -6,7 +6,9 @@
     "example"
   ],
   "scripts": {
-    "specs": "bun --cwd packages/react-native-nitro-update run specs",
-    "example": "bun --cwd example"
+    "specs": "npm run specs --prefix packages/react-native-nitro-update",
+    "example": "npm run --prefix example",
+    "example:android": "npm run android --prefix example",
+    "example:ios": "npm run ios --prefix example"
   }
 }
