@@ -12,6 +12,26 @@ yarn add react-native-nitro-update react-native-nitro-modules
 
 **Peer dependencies:** `react`, `react-native`, `react-native-nitro-modules` (e.g. `^0.35.0`).
 
+## Step-by-step: How to use this library
+
+1. **Install** the package and peer dependency (see above).
+
+2. **Host two URLs somewhere** (your server, CDN, S3, or GitHub):
+   - A **version URL** that returns a single version string (e.g. `1.0.0`) or a JSON manifest.
+   - A **download URL** that serves a **zip file** containing your JS bundle (and optionally assets). The zip can contain the bundle at the root or in a subfolder; the library can auto-detect or you can pass `bundlePathInZip`.
+
+3. **Wire native so the app loads the OTA bundle when present:**
+   - **iOS:** In AppDelegate, use `NitroUpdateBundleManager.getStoredBundleURL()` in your `bundleURL()` (see [Native setup – iOS](#ios--load-ota-bundle)). Add the `NitroUpdateBundleManager` pod in the Podfile if needed.
+   - **Android:** When building the React Native host, use `NitroUpdateBundleLoader.getStoredBundlePath(context)`; when it’s non-null, load the JS bundle from that path (see [Native setup – Android](#android--load-ota-bundle)).
+
+4. **In your app (JS):** Call `checkForUpdate(versionUrl)`. If it returns `true`, call `downloadUpdate(downloadUrl)`, then `reloadApp()`. After the app restarts on the new bundle, call `confirmBundle()` once you know the new bundle runs correctly (e.g. after a successful API call or screen load).
+
+5. **Optional:** Use `checkForUpdateFromManifest(manifestUrl)` for a JSON manifest with `version`, `minAppVersion`, `bundleUrl`, `checksum`, etc. Use `downloadUpdateWithRetry()` for retries. Use `scheduleBackgroundCheck(versionUrl, downloadUrl, intervalSeconds)` so the app checks for updates in the background (iOS: add Background Modes + task identifier; see [Background check](#background-check)).
+
+6. **If something goes wrong:** Call `rollbackToPreviousBundle()` then `reloadApp()`, or `markCurrentBundleAsBad(reason)`. Use `getRollbackHistory()` and `onRollback()` for analytics or UI.
+
+That’s the full flow: **host version + zip → native loads stored bundle when present → JS checks, downloads, reloads, confirms.**
+
 ## Native setup
 
 ### iOS — load OTA bundle
