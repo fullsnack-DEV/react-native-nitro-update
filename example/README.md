@@ -1,8 +1,20 @@
 # Nitro OTA Example
 
-Minimal example app for `react-native-nitro-update`. Uses the library from the monorepo (`file:../packages/react-native-nitro-update`).
+Example app for `react-native-nitro-update`. Uses the library from the monorepo (`file:../packages/react-native-nitro-update`).
 
-## Run
+## Working demo (install on device and test OTA)
+
+**Yes — install a release build on a physical device** to see the full flow: app runs → Check for update → Download & reload → app restarts on the new bundle → Confirm bundle.
+
+**Step-by-step:** See **[DEMO.md](./DEMO.md)** for a generic flow, or **[DEMO-GITHUB-RELEASE.md](./DEMO-GITHUB-RELEASE.md)** for testing with the [Testing-OTA-builds-via-release](https://github.com/fullsnack-DEV/Testing-OTA-builds-via-release) repo:
+
+1. Installing the app on your device (iOS/Android release).
+2. Creating `version.txt` and a bundle zip.
+3. Hosting them (e.g. local server + ngrok).
+4. Setting the version and download URLs in the app.
+5. Running the demo: Check → Download & reload → Confirm.
+
+## Run (development)
 
 From repo root:
 
@@ -23,10 +35,17 @@ Start Metro first if needed: `npm start` (from root or example).
 ## What it does
 
 - Shows **stored OTA version** (if any).
-- **Check for update** (placeholder URL).
+- **Check for update** — then **Download & reload** when an update is available.
+- **Confirm bundle** — call after the app has restarted on the new bundle.
 - **Rollback history** and **Rollback** to previous bundle.
 
-Extend with download, progress, and reload flows as needed.
+Set `VERSION_CHECK_URL` and `DOWNLOAD_URL` in `App.tsx` to your hosted files (see [DEMO.md](./DEMO.md)).
+
+**Create iOS OTA zip:** After making your changes in `App.tsx` (e.g. `BUILD_LABEL = '1.0.1'`), run from repo root:
+```bash
+./example/scripts/build-ota-zip-ios.sh
+```
+Output: `/tmp/ota-demo/bundle.zip`. Upload it (and `version.txt`) to your OTA repo.
 
 ## iOS bundle loader
 

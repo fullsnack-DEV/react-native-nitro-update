@@ -1,6 +1,6 @@
 /**
- * Minimal OTA example: shows stored version and basic actions.
- * Extend with full check/download/reload UI in Phase 7.
+ * OTA example: check, download, reload, confirm, rollback.
+ * For a working demo: set VERSION_CHECK_URL and DOWNLOAD_URL to your hosted files (see example/DEMO.md).
  */
 
 import React, { useCallback, useState } from 'react';
@@ -14,18 +14,26 @@ import {
 import {
   getStoredVersion,
   checkForUpdate,
+  downloadUpdate,
+  confirmBundle,
   getRollbackHistory,
   rollbackToPreviousBundle,
   reloadApp,
   type RollbackRecord,
 } from 'react-native-nitro-update';
 
-const VERSION_CHECK_URL = 'https://example.com/version.txt';
+// OTA host: use GitHub repo (update version.txt + bundle.zip there). See example/DEMO.md and DEMO-GITHUB-RELEASE.md
+const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/version.txt'
+const DOWNLOAD_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/bundle.zip'
+
+// Change this when you build an OTA bundle so you can see the update (e.g. '1.0.0' → '1.0.1')
+const BUILD_LABEL = '1.0.1'
 
 function App() {
   const [storedVersion, setStoredVersion] = useState<string | null>(() =>
     getStoredVersion()
   );
+  const [hasUpdate, setHasUpdate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<RollbackRecord[]>([]);
@@ -37,14 +45,35 @@ function App() {
   const handleCheck = useCallback(async () => {
     setLoading(true)
     setMessage(null)
+    setHasUpdate(false)
     try {
-      const hasUpdate = await checkForUpdate(VERSION_CHECK_URL)
-      setMessage(hasUpdate ? 'Update available' : 'No update')
+      const available = await checkForUpdate(VERSION_CHECK_URL)
+      setHasUpdate(available)
+      setMessage(available ? 'Update available' : 'No update')
     } catch (e) {
       setMessage(`Check failed: ${(e as Error).message}`)
     } finally {
       setLoading(false)
     }
+  }, []);
+
+  const handleDownloadAndReload = useCallback(async () => {
+    setLoading(true)
+    setMessage(null)
+    try {
+      await downloadUpdate(DOWNLOAD_URL)
+      setMessage('Downloaded; reloading app…')
+      reloadApp()
+    } catch (e) {
+      setMessage(`Download failed: ${(e as Error).message}`)
+      setLoading(false)
+    }
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    confirmBundle()
+    setMessage('Bundle confirmed.')
+    setStoredVersion(getStoredVersion())
   }, []);
 
   const handleHistory = useCallback(async () => {
@@ -82,7 +111,8 @@ function App() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Nitro OTA Example</Text>
-      <Text style={styles.version}>Stored version: {storedVersion ?? 'none'}</Text>
+      <Text style={styles.buildLabel}>Build: {BUILD_LABEL}</Text>
+      <Text style={styles.version}>Stored OTA version: {storedVersion ?? 'none'}</Text>
 
       <TouchableOpacity style={styles.button} onPress={refreshVersion}>
         <Text style={styles.buttonText}>Refresh version</Text>
@@ -93,6 +123,18 @@ function App() {
         disabled={loading}
       >
         <Text style={styles.buttonText}>Check for update</Text>
+      </TouchableOpacity>
+      {hasUpdate && (
+        <TouchableOpacity
+          style={[styles.button, styles.download, loading && styles.buttonDisabled]}
+          onPress={handleDownloadAndReload}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>Download & reload</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={styles.button} onPress={handleConfirm}>
+        <Text style={styles.buttonText}>Confirm bundle</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
@@ -120,6 +162,8 @@ function App() {
           </Text>
         </View>
       )}
+
+
     </View>
   )
 }
@@ -129,12 +173,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     paddingTop: 60,
-    backgroundColor: '#fff',
+    backgroundColor: 'red',
   },
   title: {
     fontSize: 22,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  buildLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+    color: '#666',
   },
   version: {
     fontSize: 16,
@@ -149,6 +198,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  download: {
+    backgroundColor: '#2d7d32',
   },
   rollback: {
     backgroundColor: '#c53030',
