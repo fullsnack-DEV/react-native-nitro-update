@@ -1,0 +1,12 @@
+{
+  "name": "react-native-nitro-update-root",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "example"
+  ],
+  "scripts": {
+    "specs": "bun --cwd packages/react-native-nitro-update run specs",
+    "example": "bun --cwd example"
+  }
+}
