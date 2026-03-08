@@ -1,7 +1,7 @@
 {
   "name": "react-native-nitro-update",
   "version": "0.0.1",
-  "description": "react-native-nitro-update",
+  "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",
   "types": "lib/index.d.ts",
@@ -25,6 +25,7 @@
     "ios/**/*.swift",
     "app.plugin.js",
     "nitro.json",
+    "NitroIsolatedBundle",
     "*.podspec",
     "README.md"
   ],
@@ -38,18 +39,22 @@
   },
   "keywords": [
     "react-native",
-    "nitro"
+    "nitro",
+    "ota",
+    "over-the-air",
+    "updates",
+    "jsi"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mrousavy/nitro.git"
+    "url": "https://github.com/fullsnack-DEV/react-native-nitro-update.git"
   },
-  "author": "Marc Rousavy <me@mrousavy.com> (https://github.com/mrousavy)",
+  "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mrousavy/nitro/issues"
+    "url": "https://github.com/fullsnack-DEV/react-native-nitro-update/issues"
   },
-  "homepage": "https://github.com/mrousavy/nitro#readme",
+  "homepage": "https://github.com/fullsnack-DEV/react-native-nitro-update#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
