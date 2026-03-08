@@ -151,3 +151,35 @@ If you prefer to use **Releases** and tags (e.g. v1.0.0, v1.0.1):
 3. Rebuild and reinstall the app once. After that, **Check for update** and **Download & reload** will use that release’s assets.
 
 For the next OTA (e.g. v1.0.2), create a new release, upload new files, and update the two URLs in the app and rebuild again. For multiple OTAs without changing the app, keeping **version.txt** and **bundle.zip** on **main** and updating them there is simpler.
+
+---
+
+## Fix: bundle.zip 404 on main (physical build already uses these URLs)
+
+If your **physical build** already uses the main-branch URLs and you see:
+
+- `https://raw.githubusercontent.com/.../main/version.txt` → works (e.g. shows 1.0.1)
+- `https://raw.githubusercontent.com/.../main/bundle.zip` → **404 Not Found**
+
+then **bundle.zip** is missing from the repo’s **main** branch. Add it like this:
+
+1. **Get a valid bundle.zip** (from this project):
+   ```bash
+   # From react-native-nitro-update repo root
+   ./example/scripts/build-ota-zip-ios.sh
+   ```
+   This creates `/tmp/ota-demo/bundle.zip`. Or use `example/ota-demo/bundle.zip` if you already have one.
+
+2. **Clone the OTA repo and add bundle.zip**:
+   ```bash
+   git clone https://github.com/fullsnack-DEV/Testing-OTA-builds-via-release.git
+   cd Testing-OTA-builds-via-release
+   cp /tmp/ota-demo/bundle.zip .    # or cp /path/to/react-native-nitro-update/example/ota-demo/bundle.zip .
+   git add bundle.zip
+   git commit -m "Add bundle.zip for OTA"
+   git push origin main
+   ```
+
+3. **Verify:** Open  
+   `https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/bundle.zip`  
+   in a browser; it should download the file (no 404). Your physical build will then be able to download the OTA.

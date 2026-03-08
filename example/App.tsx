@@ -26,8 +26,8 @@ import {
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/version.txt'
 const DOWNLOAD_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/bundle.zip'
 
-// Change this when you build an OTA bundle so you can see the update (e.g. '1.0.0' → '1.0.1')
-const BUILD_LABEL = '1.0.1'
+// Change this when you build an OTA bundle so you can see the update (e.g. '1.0.3' → '1.0.4')
+const BUILD_LABEL = '1.0.4'
 
 function App() {
   const [storedVersion, setStoredVersion] = useState<string | null>(() =>
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     paddingTop: 60,
-    backgroundColor: 'red',
+    backgroundColor: 'green',
   },
   title: {
     fontSize: 22,
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2d7d32',
   },
   rollback: {
-    backgroundColor: '#c53030',
+    backgroundColor: '#6b7280',
   },
   buttonText: {
     color: '#fff',

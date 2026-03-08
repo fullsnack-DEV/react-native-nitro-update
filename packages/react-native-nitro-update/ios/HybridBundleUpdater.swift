@@ -30,11 +30,12 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
       let remoteVersion = String(data: data, encoding: .utf8)?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       OtaStorage.lastCheckedRemoteVersion = remoteVersion.isEmpty ? nil : remoteVersion
-      let stored = OtaStorage.getStoredVersion()
+      let storedRaw = OtaStorage.getStoredVersion()
+      let stored = storedRaw?.trimmingCharacters(in: .whitespacesAndNewlines)
       if OtaStorage.getBlacklist().contains(remoteVersion) {
         return false
       }
-      if stored == nil { return !remoteVersion.isEmpty }
+      if stored == nil || stored!.isEmpty { return !remoteVersion.isEmpty }
       return remoteVersion != stored
     }
   }
@@ -368,7 +369,8 @@ private func findBundleFile(in directory: URL) -> URL? {
     guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
     let ext = file.pathExtension.lowercased()
     let name = file.lastPathComponent.lowercased()
-    if ext == "bundle" || ext == "jsbundle" || name == "index.bundle" || name == "main.jsbundle" {
+    if ext == "bundle" || ext == "jsbundle" ||
+       name == "index.bundle" || name == "main.jsbundle" || name == "index.ios.jsbundle" {
       return file
     }
   }
