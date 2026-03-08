@@ -12,7 +12,12 @@
     ],
     "androidCxxLibName": "NitroUpdate"
   },
-  "autolinking": {},
+  "autolinking": {
+    "BundleUpdater": {
+      "swift": "HybridBundleUpdater",
+      "kotlin": "HybridBundleUpdater"
+    }
+  },
   "ignorePaths": [
     "**/node_modules"
   ]
