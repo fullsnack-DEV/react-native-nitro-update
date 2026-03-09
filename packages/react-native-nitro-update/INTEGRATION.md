@@ -248,7 +248,7 @@ Then upload `version.txt` and `bundle.zip` to your release or CDN. The library e
 
 | Step | What to do |
 |------|------------|
-| 1 | `npm install react-native-nitro-update react-native-nitro-modules` |
+| 1 | `npm install react-native-nitro-update` |
 | 2 | iOS: Add `NitroUpdateBundleManager` pod and implement `bundleURL()` to prefer OTA bundle in release |
 | 3 | Android: Use `NitroUpdateBundleLoader.getStoredBundlePath(context)` when loading the JS bundle in release |
 | 4 | JS: Call `checkForUpdate` → `downloadUpdate` after launch (e.g. in `useEffect` + `InteractionManager`), **without** calling `reloadApp()` |
