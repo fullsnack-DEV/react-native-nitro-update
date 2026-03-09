@@ -270,6 +270,10 @@ npm run example:ios
 
 See `example/README.md` for details.
 
+## Publishing to npm
+
+To publish this package to the public npm registry, see **[PUBLISHING.md](./PUBLISHING.md)** for prerequisites (npm account, 2FA), versioning, and the exact `npm publish` steps.
+
 ## License
 
 MIT
