@@ -1,6 +1,6 @@
 # Test OTA with your GitHub repo (Testing-OTA-builds-via-release)
 
-Use [fullsnack-DEV/Testing-OTA-builds-via-release](https://github.com/fullsnack-DEV/Testing-OTA-builds-via-release) to host the version file and bundle zip. The example app is already pointed at that repo’s `main` branch.
+Use [fullsnack-DEV/Testing-OTA-builds-via-release](https://github.com/fullsnack-DEV/Testing-OTA-builds-via-release) to host the version file and bundle zip. The example app uses the **githubOTA** helper (same pattern as [react-native-nitro-ota](https://github.com/riteshshukla04/react-native-nitro-ota)) with `useReleases: true`, so it points at the **latest release** assets.
 
 Flow: **install release on device** → **make a visible change in the app** → **bundle and zip** → **put files in the repo (or Release)** → **in the app: Check → Download & reload** → you see the change.
 

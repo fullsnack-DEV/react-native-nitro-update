@@ -5,12 +5,14 @@ OTA (over-the-air) updates for React Native using [Nitro](https://github.com/nit
 ## Install
 
 ```bash
-npm install react-native-nitro-update react-native-nitro-modules
+npm install react-native-nitro-update
 # or
-yarn add react-native-nitro-update react-native-nitro-modules
+yarn add react-native-nitro-update
 ```
 
-**Peer dependencies:** `react`, `react-native`, `react-native-nitro-modules` (e.g. `^0.35.0`).
+**Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically.
+
+**Using this in another project?** See **[INTEGRATION.md](./INTEGRATION.md)** for step-by-step: install, iOS/Android native wiring, JS auto-update snippet, hosting (e.g. GitHub Releases), and building the OTA zip.
 
 ## Step-by-step: How to use this library
 
@@ -31,6 +33,8 @@ yarn add react-native-nitro-update react-native-nitro-modules
 6. **If something goes wrong:** Call `rollbackToPreviousBundle()` then `reloadApp()`, or `markCurrentBundleAsBad(reason)`. Use `getRollbackHistory()` and `onRollback()` for analytics or UI.
 
 That’s the full flow: **host version + zip → native loads stored bundle when present → JS checks, downloads, reloads, confirms.**
+
+**When does the OTA apply for users?** If you ship a physical (release) build and host the zip on a GitHub release: the app checks for updates shortly after launch, downloads the new bundle in the background while the user keeps using the app, then (in the example) calls `reloadApp()` so the **next cold start** loads the new bundle. For a step-by-step diagram and “you do this / user sees this”, see the example’s [OTA-FLOW.md](../../example/OTA-FLOW.md).
 
 ## Native setup
 
@@ -215,10 +219,44 @@ scheduleBackgroundCheck(
 )
 ```
 
+## GitHub OTA helper (react-native-nitro-ota style)
+
+Like [react-native-nitro-ota](https://github.com/riteshshukla04/react-native-nitro-ota), you can use a `githubOTA()` helper to build version and download URLs from a GitHub repo:
+
+```ts
+import { githubOTA, checkForUpdate, downloadUpdate, reloadApp } from 'react-native-nitro-update'
+
+// Option 1: Use Releases (recommended) — one app build; create a new Release for each OTA
+const { versionUrl, downloadUrl } = githubOTA({
+  githubUrl: 'https://github.com/your-username/your-ota-repo',
+  otaVersionPath: 'version.txt',
+  bundlePath: 'bundle.zip',
+  useReleases: true,
+})
+
+// Option 2: Use a branch (raw) — push version.txt and bundle.zip to main
+const { versionUrl, downloadUrl } = githubOTA({
+  githubUrl: 'https://github.com/your-username/your-ota-repo',
+  otaVersionPath: 'version.txt',
+  ref: 'main',
+  useReleases: false,
+})
+
+const hasUpdate = await checkForUpdate(versionUrl)
+if (hasUpdate) {
+  await downloadUpdate(downloadUrl)
+  reloadApp()
+}
+```
+
+| Option        | versionUrl / downloadUrl |
+|---------------|---------------------------|
+| `useReleases: true`  | `https://github.com/owner/repo/releases/latest/download/version.txt` and `.../bundle.zip` |
+| `useReleases: false` | `https://raw.githubusercontent.com/owner/repo/ref/version.txt` and `.../bundle.zip` |
+
 ## What might be added
 
 - **Download progress**: Native progress callback (e.g. `received` / `total`) exposed to JS so you can show a progress bar (API design exists; native wiring may need completion).
-- **GitHub OTA helper**: A small helper like `githubOTA({ githubUrl, otaVersionPath, ref })` that returns `downloadUrl` and `versionUrl` for GitHub raw URLs (convenience only).
 - **Expo config plugin**: Document or add an Expo config plugin if you use Expo prebuild.
 
 ## Example app

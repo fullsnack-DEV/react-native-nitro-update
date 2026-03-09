@@ -18,6 +18,19 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipInputStream
 
+private fun isValidVersionString(s: String): Boolean {
+  val t = s.trim()
+  if (t.isEmpty() || t.length > 64) return false
+  val lower = t.lowercase()
+  if (lower.contains("<!doctype") || lower.contains("<html") || lower.contains("<meta") || t.contains("<") || t.contains(">")) return false
+  return true
+}
+
+private fun sanitizeVersion(s: String?): String? {
+  if (s == null) return null
+  return if (isValidVersionString(s)) s.trim() else null
+}
+
 @Keep
 @DoNotStrip
 class HybridBundleUpdater : HybridBundleUpdaterSpec() {
@@ -28,14 +41,18 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
     val url = URL(versionCheckUrl)
     val conn = url.openConnection() as HttpURLConnection
     conn.requestMethod = "GET"
+    conn.setRequestProperty("Accept", "text/plain")
     conn.connectTimeout = 10_000
     conn.readTimeout = 10_000
     try {
-      val remoteVersion = conn.inputStream.bufferedReader().readText().trim()
-      OtaStorage.lastCheckedRemoteVersion = remoteVersion.ifEmpty { null }
-      val stored = OtaStorage.getStoredVersion()
+      if (conn.responseCode !in 200..299) return@async false
+      val raw = conn.inputStream.bufferedReader().readText()
+      val remoteVersion = sanitizeVersion(raw)
+      if (remoteVersion == null) return@async false
+      OtaStorage.lastCheckedRemoteVersion = remoteVersion
+      val stored = sanitizeVersion(OtaStorage.getStoredVersion())
       if (OtaStorage.getBlacklist().contains(remoteVersion)) return@async false
-      if (stored == null) return@async remoteVersion.isNotEmpty()
+      if (stored == null) return@async true
       remoteVersion != stored
     } finally {
       conn.disconnect()
@@ -81,7 +98,8 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
         }
       }
 
-      val version = OtaStorage.lastCheckedRemoteVersion ?: "unknown"
+      val rawVersion = OtaStorage.lastCheckedRemoteVersion ?: "unknown"
+      val version = sanitizeVersion(rawVersion) ?: "unknown"
       OtaStorage.savePreviousForRollback()
       OtaStorage.setStoredVersion(version)
       OtaStorage.setStoredBundlePath(bundlePath)
@@ -93,7 +111,9 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
   }
 
   override fun getStoredVersion(): Variant_NullType_String {
-    val v = OtaStorage.getStoredVersion()
+    val raw = OtaStorage.getStoredVersion()
+    val v = sanitizeVersion(raw)
+    if (v == null && !raw.isNullOrEmpty()) OtaStorage.setStoredVersion(null)
     return if (v != null) Variant_NullType_String.create(v) else Variant_NullType_String.create(NullType.NULL)
   }
 

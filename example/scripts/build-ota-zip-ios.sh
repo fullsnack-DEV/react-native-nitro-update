@@ -26,7 +26,8 @@ npx react-native bundle \
 
 echo "Creating zip..."
 cd "$OUT_DIR"
-zip -r "$ZIP_NAME" .
+rm -f "$ZIP_NAME"
+zip "$ZIP_NAME" index.ios.jsbundle version.txt
 
 echo "Done: $OUT_DIR/$ZIP_NAME"
 ls -la "$OUT_DIR/$ZIP_NAME"

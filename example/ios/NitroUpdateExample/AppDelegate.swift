@@ -41,9 +41,8 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
-    // Prefer OTA bundle when present
     if let otaURL = NitroUpdateBundleManager.getStoredBundleURL() {
       return otaURL
     }

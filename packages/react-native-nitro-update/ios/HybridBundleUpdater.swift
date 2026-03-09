@@ -17,28 +17,49 @@ private func wrapOptionalString(_ s: String?) -> Variant_NullType_String {
   return .second(s)
 }
 
+private func isValidVersionString(_ s: String) -> Bool {
+  let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+  if t.isEmpty || t.count > 64 { return false }
+  if t.contains("<") || t.contains(">") { return false }
+  return true
+}
+
+private func sanitizeVersion(_ s: String?) -> String? {
+  guard let s = s, isValidVersionString(s) else { return nil }
+  return s.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBundleUpdaterSpec_protocol {
   
   public override init() {
     super.init()
   }
   
+  // MARK: - Version check
+  
   public func checkForUpdate(versionCheckUrl: String) throws -> Promise<Bool> {
     Promise.async {
       guard let url = URL(string: versionCheckUrl) else { return false }
-      let (data, _) = try await URLSession.shared.data(from: url)
-      let remoteVersion = String(data: data, encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      OtaStorage.lastCheckedRemoteVersion = remoteVersion.isEmpty ? nil : remoteVersion
-      let storedRaw = OtaStorage.getStoredVersion()
-      let stored = storedRaw?.trimmingCharacters(in: .whitespacesAndNewlines)
-      if OtaStorage.getBlacklist().contains(remoteVersion) {
+      var request = URLRequest(url: url)
+      request.setValue("text/plain", forHTTPHeaderField: "Accept")
+      let (data, response) = try await URLSession.shared.data(for: request)
+      if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
         return false
       }
-      if stored == nil || stored!.isEmpty { return !remoteVersion.isEmpty }
+      let raw = String(data: data, encoding: .utf8) ?? ""
+      guard let remoteVersion = sanitizeVersion(raw) else {
+        OtaStorage.lastCheckedRemoteVersion = nil
+        return false
+      }
+      OtaStorage.lastCheckedRemoteVersion = remoteVersion
+      let stored = sanitizeVersion(OtaStorage.getStoredVersion())
+      if OtaStorage.getBlacklist().contains(remoteVersion) { return false }
+      if stored == nil || stored!.isEmpty { return true }
       return remoteVersion != stored
     }
   }
+  
+  // MARK: - Download
   
   public func downloadUpdate(
     downloadUrl: String,
@@ -50,27 +71,34 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
     
     return Promise.async {
       guard let url = URL(string: downloadUrl) else {
-        throw NSError(domain: "NitroUpdate", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid download URL"])
+        throw NitroUpdateError.invalidURL(downloadUrl)
       }
       OtaStorage.savePreviousForRollback()
       
-      let (tempZipLocation, _) = try await URLSession.shared.download(from: url)
-      let zipPath = tempZipLocation.path
+      let (tempZipLocation, response) = try await URLSession.shared.download(from: url)
+      if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+        throw NitroUpdateError.httpError(http.statusCode)
+      }
       defer { try? FileManager.default.removeItem(at: tempZipLocation) }
       
       let unzipDir = OtaStorage.bundlesDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
       try FileManager.default.createDirectory(at: unzipDir, withIntermediateDirectories: true)
-      
-      try unzipFile(at: zipPath, to: unzipDir.path)
+      try unzipFile(at: tempZipLocation.path, to: unzipDir.path)
       
       let bundlePath: String
       if let subpath = bundleSubpath, !subpath.isEmpty {
         bundlePath = unzipDir.appendingPathComponent(subpath).path
       } else {
         guard let found = findBundleFile(in: unzipDir) else {
-          throw NSError(domain: "NitroUpdate", code: 2, userInfo: [NSLocalizedDescriptionKey: "No bundle file found in zip"])
+          try? FileManager.default.removeItem(at: unzipDir)
+          throw NitroUpdateError.noBundleFound
         }
         bundlePath = found.path
+      }
+      
+      guard FileManager.default.fileExists(atPath: bundlePath) else {
+        try? FileManager.default.removeItem(at: unzipDir)
+        throw NitroUpdateError.noBundleFound
       }
       
       if let expected = expectedChecksum, !expected.isEmpty {
@@ -78,30 +106,39 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
         let computed = sha256Hex(data)
         if computed.lowercased() != expected.lowercased() {
           try? FileManager.default.removeItem(at: unzipDir)
-          throw NSError(domain: "NitroUpdate", code: 3, userInfo: [NSLocalizedDescriptionKey: "Checksum mismatch"])
+          throw NitroUpdateError.checksumMismatch
         }
       }
       
-      let version = OtaStorage.lastCheckedRemoteVersion ?? "unknown"
+      let version = sanitizeVersion(OtaStorage.lastCheckedRemoteVersion) ?? "unknown"
       OtaStorage.setStoredVersion(version)
       OtaStorage.setStoredBundlePath(bundlePath)
       OtaStorage.isPendingValidation = true
     }
   }
   
+  // MARK: - Stored state
+  
   public func getStoredVersion() throws -> Variant_NullType_String {
-    wrapOptionalString(OtaStorage.getStoredVersion())
+    let raw = OtaStorage.getStoredVersion()
+    if let valid = sanitizeVersion(raw) { return .second(valid) }
+    if raw != nil && !(raw?.isEmpty ?? true) { OtaStorage.setStoredVersion(nil) }
+    return .first(NullType.null)
   }
   
   public func getStoredBundlePath() throws -> Variant_NullType_String {
     wrapOptionalString(OtaStorage.getStoredBundlePath())
   }
   
+  // MARK: - Reload
+  
   public func reloadApp() throws {
-    DispatchQueue.main.async {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
       exit(0)
     }
   }
+  
+  // MARK: - Confirm / Rollback
   
   public func confirmBundle() throws {
     OtaStorage.isPendingValidation = false
@@ -112,6 +149,10 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
     Promise.async {
       guard let prevPath = OtaStorage.getPreviousBundlePath(),
             let prevVersion = OtaStorage.getPreviousVersion() else {
+        return false
+      }
+      guard FileManager.default.fileExists(atPath: prevPath) else {
+        OtaStorage.clearPrevious()
         return false
       }
       let fromVersion = OtaStorage.getStoredVersion() ?? "unknown"
@@ -132,7 +173,9 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
         blacklist.append(fromVersion)
         OtaStorage.setBlacklist(blacklist)
       }
-      if let prevPath = OtaStorage.getPreviousBundlePath(), let prevVersion = OtaStorage.getPreviousVersion() {
+      if let prevPath = OtaStorage.getPreviousBundlePath(),
+         let prevVersion = OtaStorage.getPreviousVersion(),
+         FileManager.default.fileExists(atPath: prevPath) {
         OtaStorage.setStoredVersion(prevVersion)
         OtaStorage.setStoredBundlePath(prevPath)
       } else {
@@ -144,6 +187,8 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
       OtaStorage.clearPrevious()
     }
   }
+  
+  // MARK: - Blacklist / History
   
   public func getBlacklist() throws -> Promise<String> {
     Promise.async {
@@ -161,6 +206,8 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
     }
   }
   
+  // MARK: - Background check
+  
   public func scheduleBackgroundCheck(
     versionCheckUrl: String,
     downloadUrl: Variant_NullType_String?,
@@ -175,6 +222,30 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
     #endif
   }
 }
+
+// MARK: - Typed errors
+
+private enum NitroUpdateError: LocalizedError {
+  case invalidURL(String)
+  case httpError(Int)
+  case noBundleFound
+  case checksumMismatch
+  case unzipFailed
+  case decompressFailed
+  
+  var errorDescription: String? {
+    switch self {
+    case .invalidURL(let url): return "Invalid URL: \(url)"
+    case .httpError(let code): return "HTTP error \(code)"
+    case .noBundleFound: return "No bundle file found in zip"
+    case .checksumMismatch: return "Checksum mismatch"
+    case .unzipFailed: return "Unzip failed"
+    case .decompressFailed: return "Decompress failed"
+    }
+  }
+}
+
+// MARK: - Background task (iOS)
 
 #if canImport(BackgroundTasks) && !os(macOS)
 private let kBackgroundTaskIdentifier = "com.nitroupdate.backgroundcheck"
@@ -196,9 +267,7 @@ extension HybridBundleUpdater {
     let interval = max(OtaStorage.bgIntervalSeconds, 900)
     let request = BGAppRefreshTaskRequest(identifier: kBackgroundTaskIdentifier)
     request.earliestBeginDate = Date(timeIntervalSinceNow: interval)
-    do {
-      try BGTaskScheduler.shared.submit(request)
-    } catch {}
+    try? BGTaskScheduler.shared.submit(request)
   }
 
   private static func handleBackgroundCheck(task: BGAppRefreshTask) {
@@ -222,18 +291,15 @@ extension HybridBundleUpdater {
       semaphore.signal()
     }.resume()
     _ = semaphore.wait(timeout: .now() + 30)
-    if fetchError != nil || remoteVersion == nil {
-      task.setTaskCompleted(success: true)
-      return
-    }
-    let remote = remoteVersion!.isEmpty ? nil : remoteVersion!
+    
+    if fetchError != nil { task.setTaskCompleted(success: true); return }
+    guard let remote = sanitizeVersion(remoteVersion) else { task.setTaskCompleted(success: true); return }
+    
     OtaStorage.lastCheckedRemoteVersion = remote
     let stored = OtaStorage.getStoredVersion()
-    if let r = remote, OtaStorage.getBlacklist().contains(r) {
-      task.setTaskCompleted(success: true)
-      return
-    }
-    let hasUpdate = stored == nil ? (remote != nil && !(remote?.isEmpty ?? true)) : (remote != stored)
+    if OtaStorage.getBlacklist().contains(remote) { task.setTaskCompleted(success: true); return }
+    
+    let hasUpdate = stored == nil ? true : (remote != stored)
     if !hasUpdate || downloadUrl == nil || downloadUrl!.isEmpty {
       task.setTaskCompleted(success: true)
       return
@@ -250,9 +316,7 @@ extension HybridBundleUpdater {
 #endif
 
 private func performDownloadSync(downloadUrl: String, bundleSubpath: String?, expectedChecksum: String?) throws {
-  guard let url = URL(string: downloadUrl) else {
-    throw NSError(domain: "NitroUpdate", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid download URL"])
-  }
+  guard let url = URL(string: downloadUrl) else { throw NitroUpdateError.invalidURL(downloadUrl) }
   let semaphore = DispatchSemaphore(value: 0)
   var tempZipURL: URL?
   var downloadError: Error?
@@ -263,21 +327,18 @@ private func performDownloadSync(downloadUrl: String, bundleSubpath: String?, ex
   }.resume()
   _ = semaphore.wait(timeout: .now() + 300)
   if let e = downloadError { throw e }
-  guard let zipLocation = tempZipURL else {
-    throw NSError(domain: "NitroUpdate", code: 1, userInfo: [NSLocalizedDescriptionKey: "Download failed"])
-  }
-  let zipPath = zipLocation.path
+  guard let zipLocation = tempZipURL else { throw NitroUpdateError.httpError(0) }
   defer { try? FileManager.default.removeItem(at: zipLocation) }
+  
   let unzipDir = OtaStorage.bundlesDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
   try FileManager.default.createDirectory(at: unzipDir, withIntermediateDirectories: true)
-  try unzipFile(at: zipPath, to: unzipDir.path)
+  try unzipFile(at: zipLocation.path, to: unzipDir.path)
+  
   let bundlePath: String
   if let subpath = bundleSubpath, !subpath.isEmpty {
     bundlePath = unzipDir.appendingPathComponent(subpath).path
   } else {
-    guard let found = findBundleFile(in: unzipDir) else {
-      throw NSError(domain: "NitroUpdate", code: 2, userInfo: [NSLocalizedDescriptionKey: "No bundle file found in zip"])
-    }
+    guard let found = findBundleFile(in: unzipDir) else { throw NitroUpdateError.noBundleFound }
     bundlePath = found.path
   }
   if let expected = expectedChecksum, !expected.isEmpty {
@@ -285,16 +346,16 @@ private func performDownloadSync(downloadUrl: String, bundleSubpath: String?, ex
     let computed = sha256Hex(data)
     if computed.lowercased() != expected.lowercased() {
       try? FileManager.default.removeItem(at: unzipDir)
-      throw NSError(domain: "NitroUpdate", code: 3, userInfo: [NSLocalizedDescriptionKey: "Checksum mismatch"])
+      throw NitroUpdateError.checksumMismatch
     }
   }
-  let version = OtaStorage.lastCheckedRemoteVersion ?? "unknown"
+  let version = sanitizeVersion(OtaStorage.lastCheckedRemoteVersion) ?? "unknown"
   OtaStorage.setStoredVersion(version)
   OtaStorage.setStoredBundlePath(bundlePath)
   OtaStorage.isPendingValidation = true
 }
 
-// MARK: - Helpers
+// MARK: - Zip extraction
 
 private func unzipFile(at path: String, to destination: String) throws {
 #if os(macOS)
@@ -303,11 +364,8 @@ private func unzipFile(at path: String, to destination: String) throws {
   process.arguments = ["-o", path, "-d", destination]
   try process.run()
   process.waitUntilExit()
-  guard process.terminationStatus == 0 else {
-    throw NSError(domain: "NitroUpdate", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unzip failed"])
-  }
+  guard process.terminationStatus == 0 else { throw NitroUpdateError.unzipFailed }
 #else
-  // iOS: Process not available; use minimal ZIP extraction
   let data = try Data(contentsOf: URL(fileURLWithPath: path))
   try unzipData(data, to: URL(fileURLWithPath: destination))
 #endif
@@ -319,48 +377,85 @@ private func unzipData(_ data: Data, to baseURL: URL) throws {
   try fm.createDirectory(at: baseURL, withIntermediateDirectories: true)
   var offset = 0
   let count = data.count
+  
   while offset + 30 <= count {
-    let sig = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: UInt32.self) }
-    guard sig == 0x04034b50 else { break } // local file header
-    let compression = data[offset + 8]
-    let compressedSize = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 18, as: UInt32.self) }
-    let uncompressedSize = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 22, as: UInt32.self) }
-    let nameLen = Int(data.withUnsafeBytes { $0.load(fromByteOffset: offset + 26, as: UInt16.self) })
-    let extraLen = Int(data.withUnsafeBytes { $0.load(fromByteOffset: offset + 28, as: UInt16.self) })
+    let sig = readUInt32(data, at: offset)
+    guard sig == 0x04034b50 else { break }
+    let compression = readUInt16(data, at: offset + 8)
+    let compressedSize = Int(readUInt32(data, at: offset + 18))
+    let uncompressedSize = Int(readUInt32(data, at: offset + 22))
+    let nameLen = Int(readUInt16(data, at: offset + 26))
+    let extraLen = Int(readUInt16(data, at: offset + 28))
     offset += 30
+    
     guard offset + nameLen <= count else { break }
     let nameData = data.subdata(in: offset..<(offset + nameLen))
-    guard let name = String(data: nameData, encoding: .utf8), !name.hasSuffix("/") else {
-      offset += nameLen + extraLen + Int(compressedSize)
+    let name = String(data: nameData, encoding: .utf8) ?? ""
+    
+    if name.isEmpty || name.hasSuffix("/") {
+      offset += nameLen + extraLen + compressedSize
       continue
     }
+    
     offset += nameLen + extraLen
-    let payload = data.subdata(in: offset..<min(offset + Int(compressedSize), count))
-    offset += Int(compressedSize)
+    guard offset + compressedSize <= count else { break }
+    
+    let payload = data.subdata(in: offset..<(offset + compressedSize))
+    offset += compressedSize
+    
     let outURL = baseURL.appendingPathComponent(name)
     try fm.createDirectory(at: outURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    
     if compression == 0 {
       try payload.write(to: outURL)
     } else if compression == 8 {
-      let decoded = try decompressDeflate(payload, expectedSize: Int(uncompressedSize))
+      let decoded = try decompressDeflate(payload, expectedSize: uncompressedSize)
       try decoded.write(to: outURL)
     }
   }
 }
 
+private func readUInt32(_ data: Data, at offset: Int) -> UInt32 {
+  var value: UInt32 = 0
+  withUnsafeMutableBytes(of: &value) { dest in
+    data.copyBytes(to: dest.bindMemory(to: UInt8.self), from: offset..<(offset + 4))
+  }
+  return value
+}
+
+private func readUInt16(_ data: Data, at offset: Int) -> UInt16 {
+  var value: UInt16 = 0
+  withUnsafeMutableBytes(of: &value) { dest in
+    data.copyBytes(to: dest.bindMemory(to: UInt8.self), from: offset..<(offset + 2))
+  }
+  return value
+}
+
 private func decompressDeflate(_ data: Data, expectedSize: Int) throws -> Data {
-  // ZIP uses raw deflate; Compression expects zlib wrapper. Prepend 78 9C (default zlib header).
+  guard expectedSize > 0 else { throw NitroUpdateError.decompressFailed }
+  let bufferSize = expectedSize + 1024
+  let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+  defer { destBuffer.deallocate() }
+  
+  // Try raw deflate first (standard ZIP), fall back to zlib-wrapped
+  let written = data.withUnsafeBytes { src -> Int in
+    guard let base = src.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+    return compression_decode_buffer(destBuffer, bufferSize, base, data.count, nil, COMPRESSION_ZLIB)
+  }
+  if written > 0 { return Data(bytes: destBuffer, count: written) }
+  
   var zlibData = Data([0x78, 0x9C])
   zlibData.append(data)
-  let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: expectedSize)
-  defer { destBuffer.deallocate() }
-  let written = zlibData.withUnsafeBytes { src in
-    compression_decode_buffer(destBuffer, expectedSize, src.bindMemory(to: UInt8.self).baseAddress!, zlibData.count, nil, COMPRESSION_ZLIB)
+  let retryWritten = zlibData.withUnsafeBytes { src -> Int in
+    guard let base = src.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+    return compression_decode_buffer(destBuffer, bufferSize, base, zlibData.count, nil, COMPRESSION_ZLIB)
   }
-  guard written > 0 else { throw NSError(domain: "NitroUpdate", code: 5, userInfo: [NSLocalizedDescriptionKey: "Decompress failed"]) }
-  return Data(bytes: destBuffer, count: written)
+  guard retryWritten > 0 else { throw NitroUpdateError.decompressFailed }
+  return Data(bytes: destBuffer, count: retryWritten)
 }
 #endif
+
+// MARK: - Bundle discovery
 
 private func findBundleFile(in directory: URL) -> URL? {
   let fm = FileManager.default
@@ -378,6 +473,5 @@ private func findBundleFile(in directory: URL) -> URL? {
 }
 
 private func sha256Hex(_ data: Data) -> String {
-  let hash = SHA256.hash(data: data)
-  return hash.map { String(format: "%02x", $0) }.joined()
+  SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }

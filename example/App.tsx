@@ -1,236 +1,264 @@
-/**
- * OTA example: check, download, reload, confirm, rollback.
- * For a working demo: set VERSION_CHECK_URL and DOWNLOAD_URL to your hosted files (see example/DEMO.md).
- */
-
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  InteractionManager,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import {
-  getStoredVersion,
   checkForUpdate,
   downloadUpdate,
   confirmBundle,
+  getStoredVersion,
   getRollbackHistory,
   rollbackToPreviousBundle,
   reloadApp,
+  githubOTA,
   type RollbackRecord,
 } from 'react-native-nitro-update';
 
-// OTA host: use GitHub repo (update version.txt + bundle.zip there). See example/DEMO.md and DEMO-GITHUB-RELEASE.md
-const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/version.txt'
-const DOWNLOAD_URL = 'https://raw.githubusercontent.com/fullsnack-DEV/Testing-OTA-builds-via-release/main/bundle.zip'
+const { versionUrl: VERSION_CHECK_URL, downloadUrl: DOWNLOAD_URL } = githubOTA({
+  githubUrl: 'https://github.com/fullsnack-DEV/Testing-OTA-builds-via-release',
+  otaVersionPath: 'version.txt',
+  bundlePath: 'bundle.zip',
+  useReleases: true,
+})
 
-// Change this when you build an OTA bundle so you can see the update (e.g. '1.0.3' → '1.0.4')
-const BUILD_LABEL = '1.0.4'
+const BUILD_LABEL = '1.0.7'
+
+type OTAStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'up_to_date' | 'error'
+
+const STATUS_LABEL: Record<OTAStatus, string> = {
+  idle: 'Waiting…',
+  checking: 'Checking for update…',
+  downloading: 'Downloading update…',
+  downloaded: 'Update ready (loads on next launch)',
+  up_to_date: 'You are on the latest version',
+  error: 'Update check failed',
+}
 
 function App() {
-  const [storedVersion, setStoredVersion] = useState<string | null>(() =>
-    getStoredVersion()
-  );
-  const [hasUpdate, setHasUpdate] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [history, setHistory] = useState<RollbackRecord[]>([]);
+  const [otaStatus, setOtaStatus] = useState<OTAStatus>('idle')
+  const [otaError, setOtaError] = useState<string | null>(null)
+  const [storedVersion, setStoredVersion] = useState<string | null>(() => getStoredVersion())
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugMsg, setDebugMsg] = useState<string | null>(null)
+  const [history, setHistory] = useState<RollbackRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const runningRef = useRef(false)
 
   const refreshVersion = useCallback(() => {
     setStoredVersion(getStoredVersion())
-  }, []);
+  }, [])
 
-  const handleCheck = useCallback(async () => {
-    setLoading(true)
-    setMessage(null)
-    setHasUpdate(false)
-    try {
-      const available = await checkForUpdate(VERSION_CHECK_URL)
-      setHasUpdate(available)
-      setMessage(available ? 'Update available' : 'No update')
-    } catch (e) {
-      setMessage(`Check failed: ${(e as Error).message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, []);
+  const runOTACheck = useCallback(async () => {
+    if (runningRef.current) return
+    runningRef.current = true
+    setOtaError(null)
+    setOtaStatus('checking')
 
-  const handleDownloadAndReload = useCallback(async () => {
-    setLoading(true)
-    setMessage(null)
     try {
+      const hasUpdate = await checkForUpdate(VERSION_CHECK_URL)
+      if (!hasUpdate) {
+        setOtaStatus('up_to_date')
+        runningRef.current = false
+        return
+      }
+
+      setOtaStatus('downloading')
       await downloadUpdate(DOWNLOAD_URL)
-      setMessage('Downloaded; reloading app…')
-      reloadApp()
+      refreshVersion()
+      setOtaStatus('downloaded')
     } catch (e) {
-      setMessage(`Download failed: ${(e as Error).message}`)
-      setLoading(false)
+      setOtaError((e as Error).message)
+      setOtaStatus('error')
+    } finally {
+      runningRef.current = false
     }
-  }, []);
+  }, [refreshVersion])
+
+  // Auto-confirm the current bundle on mount so the crash guard is satisfied.
+  // Then wait for interactions to settle before silently checking for updates.
+  useEffect(() => {
+    const current = getStoredVersion()
+    if (current) confirmBundle()
+
+    const handle = InteractionManager.runAfterInteractions(() => {
+      const timer = setTimeout(runOTACheck, 2000)
+      return () => clearTimeout(timer)
+    })
+
+    return () => handle.cancel()
+  }, [runOTACheck])
+
+  const toggleDebug = useCallback(() => setDebugOpen((v) => !v), [])
 
   const handleConfirm = useCallback(() => {
     confirmBundle()
-    setMessage('Bundle confirmed.')
-    setStoredVersion(getStoredVersion())
-  }, []);
+    setDebugMsg('Bundle confirmed.')
+  }, [])
 
   const handleHistory = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
     try {
       const h = await getRollbackHistory()
       setHistory(h)
-      setMessage(`Rollback history: ${h.length} entries`)
+      setDebugMsg(`${h.length} rollback entries`)
     } catch (e) {
-      setMessage(`History failed: ${(e as Error).message}`)
+      setDebugMsg(`History: ${(e as Error).message}`)
     } finally {
       setLoading(false)
     }
-  }, []);
+  }, [])
 
   const handleRollback = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
     try {
       const ok = await rollbackToPreviousBundle()
       if (ok) {
-        setMessage('Rolled back; reloading…')
-        reloadApp()
+        if (__DEV__) {
+          setDebugMsg('Rolled back. Build Release to test reload.')
+          setLoading(false)
+          refreshVersion()
+        } else {
+          setDebugMsg('Rolled back. Restarting…')
+          reloadApp()
+        }
       } else {
-        setMessage('No previous bundle to roll back to')
+        setDebugMsg('No previous bundle.')
+        setLoading(false)
       }
     } catch (e) {
-      setMessage(`Rollback failed: ${(e as Error).message}`)
-    } finally {
+      setDebugMsg(`Rollback: ${(e as Error).message}`)
       setLoading(false)
     }
-  }, []);
+  }, [refreshVersion])
+
+  const isBusy = otaStatus === 'checking' || otaStatus === 'downloading' || loading
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Nitro OTA Example</Text>
-      <Text style={styles.buildLabel}>Build: {BUILD_LABEL}</Text>
-      <Text style={styles.version}>Stored OTA version: {storedVersion ?? 'none'}</Text>
+      <View style={styles.hero}>
+        <Text style={styles.title}>My App</Text>
+        <Text style={styles.buildLabel}>Build {BUILD_LABEL}</Text>
+        {storedVersion != null && (
+          <Text style={styles.otaLabel}>OTA: {storedVersion}</Text>
+        )}
+      </View>
 
-      <TouchableOpacity style={styles.button} onPress={refreshVersion}>
-        <Text style={styles.buttonText}>Refresh version</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleCheck}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>Check for update</Text>
-      </TouchableOpacity>
-      {hasUpdate && (
-        <TouchableOpacity
-          style={[styles.button, styles.download, loading && styles.buttonDisabled]}
-          onPress={handleDownloadAndReload}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>Download & reload</Text>
-        </TouchableOpacity>
-      )}
-      <TouchableOpacity style={styles.button} onPress={handleConfirm}>
-        <Text style={styles.buttonText}>Confirm bundle</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleHistory}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>Rollback history</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, styles.rollback, loading && styles.buttonDisabled]}
-        onPress={handleRollback}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>Rollback</Text>
+      <View style={[styles.banner, bannerColor(otaStatus)]}>
+        {isBusy && <ActivityIndicator color="#fff" size="small" style={styles.bannerSpinner} />}
+        <View style={styles.bannerBody}>
+          <Text style={styles.bannerText}>{STATUS_LABEL[otaStatus]}</Text>
+          {otaError != null && <Text style={styles.bannerErrorText}>{otaError}</Text>}
+        </View>
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.contentText}>
+          OTA updates run automatically.{'\n'}No buttons needed for your users.
+        </Text>
+      </View>
+
+      <TouchableOpacity style={styles.debugToggle} onPress={toggleDebug}>
+        <Text style={styles.debugToggleText}>
+          {debugOpen ? 'Hide' : 'Show'} Debug Panel
+        </Text>
       </TouchableOpacity>
 
-      {loading && <ActivityIndicator style={styles.loader} />}
-      {message != null && <Text style={styles.message}>{message}</Text>}
-      {history.length > 0 && (
-        <View style={styles.history}>
-          <Text style={styles.historyTitle}>Last rollback:</Text>
-          <Text style={styles.historyText}>
-            {history[history.length - 1]?.fromVersion} →{' '}
-            {history[history.length - 1]?.toVersion}
-          </Text>
+      {debugOpen && (
+        <View style={styles.debugPanel}>
+          <Btn label="Check now" onPress={runOTACheck} disabled={isBusy} />
+          <Btn label="Confirm bundle" onPress={handleConfirm} disabled={isBusy} />
+          <Btn label="Rollback history" onPress={handleHistory} disabled={isBusy} />
+          <Btn label="Rollback" onPress={handleRollback} disabled={isBusy} bg="#b91c1c" />
+
+          {debugMsg != null && <Text style={styles.debugMsg}>{debugMsg}</Text>}
+          {history.length > 0 && (
+            <View style={styles.historyBox}>
+              <Text style={styles.historyTitle}>Last rollback:</Text>
+              <Text style={styles.historyText}>
+                {history[history.length - 1]?.fromVersion} →{' '}
+                {history[history.length - 1]?.toVersion}
+              </Text>
+            </View>
+          )}
         </View>
       )}
-
-
     </View>
   )
 }
 
+const Btn = React.memo(function Btn({
+  label,
+  onPress,
+  disabled,
+  bg,
+}: {
+  label: string
+  onPress: () => void
+  disabled?: boolean
+  bg?: string
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.debugBtn, disabled && styles.debugBtnOff, bg ? { backgroundColor: bg } : undefined]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text style={styles.debugBtnText}>{label}</Text>
+    </TouchableOpacity>
+  )
+})
+
+function bannerColor(status: OTAStatus) {
+  switch (status) {
+    case 'checking':
+    case 'downloading':
+      return styles.bannerActive
+    case 'downloaded':
+      return styles.bannerGreen
+    case 'error':
+      return styles.bannerRed
+    default:
+      return undefined
+  }
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    paddingTop: 60,
-    backgroundColor: 'green',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  buildLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-    color: '#666',
-  },
-  version: {
-    fontSize: 16,
-    marginBottom: 24,
-    color: '#333',
-  },
-  button: {
-    backgroundColor: '#0a7ea4',
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  download: {
-    backgroundColor: '#2d7d32',
-  },
-  rollback: {
-    backgroundColor: '#6b7280',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  loader: {
-    marginTop: 16,
-  },
-  message: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#333',
-  },
-  history: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-  },
-  historyTitle: {
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  historyText: {
-    fontSize: 14,
-  },
+  container: { flex: 1, backgroundColor: 'green' },
+
+  hero: { paddingTop: 64, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: '#0a7ea4' },
+  title: { fontSize: 28, fontWeight: '700', color: '#fff' },
+  buildLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+  otaLabel: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
+
+  banner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#6b7280' },
+  bannerActive: { backgroundColor: '#0369a1' },
+  bannerGreen: { backgroundColor: '#15803d' },
+  bannerRed: { backgroundColor: '#b91c1c' },
+  bannerSpinner: { marginRight: 8 },
+  bannerBody: { flex: 1 },
+  bannerText: { color: '#fff', fontSize: 14 },
+  bannerErrorText: { color: '#fca5a5', fontSize: 12, marginTop: 2 },
+
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  contentText: { fontSize: 16, textAlign: 'center', color: '#555', lineHeight: 24 },
+
+  debugToggle: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 20, marginBottom: 8 },
+  debugToggleText: { fontSize: 13, color: '#0a7ea4', fontWeight: '500' },
+
+  debugPanel: { paddingHorizontal: 24, paddingBottom: 40 },
+  debugBtn: { backgroundColor: '#374151', padding: 12, borderRadius: 8, marginBottom: 8 },
+  debugBtnOff: { opacity: 0.5 },
+  debugBtnText: { color: '#fff', fontSize: 14, textAlign: 'center' },
+  debugMsg: { marginTop: 8, fontSize: 13, color: '#333' },
+
+  historyBox: { marginTop: 8, padding: 10, backgroundColor: '#e5e7eb', borderRadius: 8 },
+  historyTitle: { fontWeight: '600', marginBottom: 2, fontSize: 13 },
+  historyText: { fontSize: 13 },
 })
 
 export default App

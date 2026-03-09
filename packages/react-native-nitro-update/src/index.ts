@@ -177,6 +177,15 @@ export {
   type UpdateCheckResult,
 } from './updateManifest'
 
+// --- GitHub OTA helper (react-native-nitro-ota style) ---
+
+export { githubOTA, type GithubOTAOptions, type GithubOTAResult } from './githubOTA'
+
+// --- Automatic OTA hook & one-call helper ---
+
+export { useOTAUpdate, type UseOTAUpdateOptions, type UseOTAUpdateResult, type OTAStatus, type InstallMode } from './useOTAUpdate'
+export { silentUpdate, type SilentUpdateOptions, type SilentUpdateResult } from './silentUpdate'
+
 // --- UpdateManager class ---
 
 export class UpdateManager {
