@@ -8,16 +8,24 @@
 export interface GithubOTAOptions {
   /** Full GitHub repo URL, e.g. 'https://github.com/owner/repo' */
   githubUrl: string
-  /** Path to the version file (plain text), e.g. 'version.txt' or 'ota.version'. Default: 'version.txt' */
+  /**
+   * Path to the version file. Default: 'version.txt'.
+   * Use a subfolder: 'ota/version.txt' (branch) or just the filename (releases use flat assets).
+   */
   otaVersionPath?: string
-  /** Path to the bundle zip file name. Default: 'bundle.zip' */
+  /**
+   * Path to the bundle zip. Default: 'bundle.zip'.
+   * Use a subfolder: 'ota/bundle.zip' (branch) or just the filename (releases).
+   */
   bundlePath?: string
   /**
-   * - If useReleases is true: uses .../releases/latest/download/... (one app build for all future OTAs).
-   * - Otherwise ref is the branch/tag for raw URLs, e.g. 'main'. Default: 'main'
+   * Branch or tag for raw URLs, e.g. 'main'. Default: 'main'. Ignored when useReleases is true.
    */
   ref?: string
-  /** Use GitHub Releases "latest" asset URLs. Default: true for easiest OTA flow. */
+  /**
+   * If true: uses GitHub Releases (releases/latest/download/...). You must create a Release and attach assets.
+   * If false (default): use raw branch URLs — just push version.txt and bundle.zip to the branch. No releases needed.
+   */
   useReleases?: boolean
 }
 
@@ -67,7 +75,7 @@ export function githubOTA(options: GithubOTAOptions): GithubOTAResult {
     otaVersionPath = 'version.txt',
     bundlePath = 'bundle.zip',
     ref = 'main',
-    useReleases = true,
+    useReleases = false,
   } = options
 
   const parsed = parseGithubUrl(githubUrl)

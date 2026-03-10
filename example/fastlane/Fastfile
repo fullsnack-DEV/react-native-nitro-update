@@ -1,0 +1,118 @@
+# Fastlane OTA lane: build bundle + zip, then upload to S3 / Firebase / your API.
+# Run from the app directory (e.g. example/):  fastlane ota
+# With version:  fastlane ota version:1.0.5
+# With env:      fastlane ota env:production
+#
+# Required: set OTA_DESTINATION and destination-specific env (see .env.ota.example).
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build OTA bundle (version.txt + bundle.zip) and upload to configured destination"
+  lane :ota do |options|
+    version = options[:version] || ENV["OTA_VERSION"]
+    env_name = options[:env] || ENV["OTA_ENV"] || "default"
+    skip_bundle = options[:skip_bundle] || false
+    dry_run = options[:dry_run] || false
+
+    app_dir = File.expand_path("..", __dir__)
+    out_dir = File.join(app_dir, "ota-release")
+    version_file = File.join(out_dir, "version.txt")
+    zip_file = File.join(out_dir, "bundle.zip")
+
+    # 1. Build bundle + zip (unless skip_bundle)
+    unless skip_bundle
+      UI.message("Building OTA bundle...")
+      if version
+        sh("cd #{app_dir} && OTA_VERSION=#{version} npm run ota:zip")
+      else
+        sh("cd #{app_dir} && npm run ota:zip")
+      end
+    end
+
+    unless File.exist?(zip_file) && File.exist?(version_file)
+      UI.user_error!("OTA artifacts not found. Run without skip_bundle first.")
+    end
+
+    ota_version = File.read(version_file).strip
+    UI.success("OTA version: #{ota_version}")
+
+    if dry_run
+      UI.important("Dry run: skipping upload")
+      next
+    end
+
+    destination = ENV["OTA_DESTINATION"] || UI.user_error!("Set OTA_DESTINATION: s3 | firebase_hosting | firebase_storage | api")
+
+    # 2. Upload to chosen destination
+    case destination
+    when "s3"
+      upload_to_s3(app_dir, out_dir, ota_version, env_name)
+    when "firebase_hosting"
+      upload_to_firebase_hosting(app_dir, out_dir, ota_version, env_name)
+    when "firebase_storage"
+      upload_to_firebase_storage(app_dir, out_dir, ota_version, env_name)
+    when "api"
+      upload_to_api(out_dir, ota_version, env_name)
+    else
+      UI.user_error!("Unknown OTA_DESTINATION: #{destination}. Use s3 | firebase_hosting | firebase_storage | api")
+    end
+
+    UI.success("OTA publish done: #{ota_version}")
+  end
+end
+
+def upload_to_s3(app_dir, out_dir, ota_version, env_name)
+  bucket = ENV["AWS_BUCKET"] || UI.user_error!("Set AWS_BUCKET")
+  region = ENV["AWS_REGION"] || "us-east-1"
+  prefix = ENV["AWS_OTA_PREFIX"] || "ota/"
+  prefix = "#{prefix}/" unless prefix.end_with?("/")
+
+  UI.message("Uploading to S3 s3://#{bucket}/#{prefix}...")
+  sh("aws s3 cp #{out_dir}/version.txt s3://#{bucket}/#{prefix}version.txt")
+  sh("aws s3 cp #{out_dir}/bundle.zip s3://#{bucket}/#{prefix}bundle.zip")
+  if ENV["AWS_CLOUDFRONT_ID"]
+    UI.message("Invalidating CloudFront...")
+    sh("aws cloudfront create-invalidation --distribution-id #{ENV['AWS_CLOUDFRONT_ID']} --paths \"/#{prefix}*\"")
+  end
+end
+
+def upload_to_firebase_hosting(app_dir, out_dir, ota_version, env_name)
+  project_id = ENV["FIREBASE_PROJECT_ID"] || UI.user_error!("Set FIREBASE_PROJECT_ID")
+  public_dir = ENV["FIREBASE_PUBLIC_DIR"] || "public"
+  ota_subfolder = ENV["FIREBASE_OTA_SUBFOLDER"] || "ota"
+  public_path = File.join(app_dir, public_dir)
+  ota_path = File.join(public_path, ota_subfolder)
+
+  FileUtils.mkdir_p(ota_path)
+  FileUtils.cp(File.join(out_dir, "version.txt"), File.join(ota_path, "version.txt"))
+  FileUtils.cp(File.join(out_dir, "bundle.zip"), File.join(ota_path, "bundle.zip"))
+
+  UI.message("Deploying to Firebase Hosting...")
+  sh("cd #{app_dir} && firebase deploy --only hosting --project #{project_id}")
+end
+
+def upload_to_firebase_storage(app_dir, out_dir, ota_version, env_name)
+  project_id = ENV["FIREBASE_PROJECT_ID"] || UI.user_error!("Set FIREBASE_PROJECT_ID")
+  storage_prefix = ENV["FIREBASE_STORAGE_PREFIX"] || "ota/"
+  UI.message("Uploading to Firebase Storage gs://#{project_id}.appspot.com/#{storage_prefix}...")
+  sh("gsutil cp #{out_dir}/version.txt gs://#{project_id}.appspot.com/#{storage_prefix}version.txt")
+  sh("gsutil cp #{out_dir}/bundle.zip gs://#{project_id}.appspot.com/#{storage_prefix}bundle.zip")
+  if ENV["FIREBASE_STORAGE_PUBLIC"]
+    sh("gsutil -m acl ch -r -u AllUsers:R gs://#{project_id}.appspot.com/#{storage_prefix}")
+  end
+end
+
+def upload_to_api(out_dir, ota_version, env_name)
+  url = ENV["OTA_API_URL"] || UI.user_error!("Set OTA_API_URL")
+  api_key = ENV["OTA_API_KEY"]
+  header = ENV["OTA_API_HEADER"] || "X-API-Key"
+
+  UI.message("Uploading to API #{url}...")
+  cmd = "curl -s -X POST"
+  cmd += " -H \"#{header}: #{api_key}\"" if api_key
+  cmd += " -F \"version=#{ota_version}\""
+  cmd += " -F \"zip=@#{out_dir}/bundle.zip\""
+  cmd += " \"#{url}\""
+  sh(cmd)
+end

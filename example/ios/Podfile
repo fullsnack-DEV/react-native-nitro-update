@@ -32,11 +32,27 @@ target 'NitroUpdateExample' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    # SWIFT_ACTIVE_COMPILATION_CONDITIONS must only contain Swift identifiers (e.g. DEBUG), not compiler flags.
+    # Move any flag-like tokens to OTHER_SWIFT_FLAGS for react-native-nitro-modules compatibility.
+    def sanitize_swift_conditions(config)
+      conditions = config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS']
+      return unless conditions
+      raw = conditions.is_a?(Array) ? conditions.join(' ') : conditions.to_s
+      tokens = raw.split
+      idents = tokens.reject { |t| t.start_with?('-') }
+      flags = tokens.select { |t| t.start_with?('-') }
+      return unless flags.any?
+      config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = idents.empty? ? '$(inherited)' : idents.join(' ')
+      other = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+      config.build_settings['OTHER_SWIFT_FLAGS'] = "#{other} #{flags.join(' ')}".strip
+    end
+
     # Ensure C++ stdlib is available for pods that use C++ (e.g. NitroModules Null.hpp)
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
         config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+        sanitize_swift_conditions(config)
       end
       # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
       if target.name == 'Pods-NitroUpdateExample'
@@ -53,6 +69,7 @@ target 'NitroUpdateExample' do
         target.build_configurations.each do |config|
           config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
           config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+          sanitize_swift_conditions(config)
         end
       end
     end
@@ -64,6 +81,7 @@ target 'NitroUpdateExample' do
         target.build_configurations.each do |config|
           config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
           config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
+          sanitize_swift_conditions(config)
         end
       end
       app_project.save

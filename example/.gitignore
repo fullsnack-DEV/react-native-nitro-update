@@ -56,6 +56,10 @@ yarn-error.log
 # Bundle artifact
 *.jsbundle
 ota-demo/
+ota-release/
+
+# OTA secrets (copy .env.ota.example to .env.ota)
+.env.ota
 
 # Ruby / CocoaPods
 **/Pods/

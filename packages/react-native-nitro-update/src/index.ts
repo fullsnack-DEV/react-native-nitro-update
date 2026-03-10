@@ -181,6 +181,17 @@ export {
 
 export { githubOTA, type GithubOTAOptions, type GithubOTAResult } from './githubOTA'
 
+// --- Single-URL OTA (host one JSON anywhere: CDN, S3, Vercel, your server) ---
+
+export {
+  fetchOTAConfig,
+  checkAndDownloadFromConfig,
+  otaUrls,
+  type OTAConfig,
+  type CheckAndDownloadOptions,
+  type OtaUrlsOptions,
+} from './otaConfig'
+
 // --- Automatic OTA hook & one-call helper ---
 
 export { useOTAUpdate, type UseOTAUpdateOptions, type UseOTAUpdateResult, type OTAStatus, type InstallMode } from './useOTAUpdate'

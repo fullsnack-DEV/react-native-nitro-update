@@ -84,6 +84,8 @@ post_install do |installer|
 end
 ```
 
+If you see Swift errors about `SWIFT_ACTIVE_COMPILATION_CONDITIONS` (e.g. flags like `-enable-bare-slash-regex`), that setting must contain only Swift identifiers (e.g. `DEBUG`); move compiler flags to `OTHER_SWIFT_FLAGS`. The [example Podfile](../../example/ios/Podfile) includes a `sanitize_swift_conditions` helper you can reuse.
+
 ---
 
 ## 3. Android native setup

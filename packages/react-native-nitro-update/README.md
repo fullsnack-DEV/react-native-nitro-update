@@ -12,6 +12,18 @@ yarn add react-native-nitro-update
 
 **Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically.
 
+**Quick setup (interactive wizard)** — after installing, run one of:
+
+```bash
+# From any project that has react-native-nitro-update installed:
+npm run setupOTA
+
+# Or without adding a script (uses the package explicitly):
+npx -p react-native-nitro-update setup-ota
+```
+
+The wizard asks how you want to host OTA (GitHub branch, S3, Firebase, API, etc.), then generates config files and a code snippet for your app.
+
 **Using this in another project?** See **[INTEGRATION.md](./INTEGRATION.md)** for step-by-step: install, iOS/Android native wiring, JS auto-update snippet, hosting (e.g. GitHub Releases), and building the OTA zip.
 
 ## Step-by-step: How to use this library
@@ -269,6 +281,16 @@ npm run example:ios
 ```
 
 See `example/README.md` for details.
+
+## Compatibility with react-native-nitro-modules
+
+This package is kept compatible with current **react-native-nitro-modules** so consumers do not need patches:
+
+- **Swift:** Generated autolinking uses `HybridView` (not `RecyclableView`).
+- **C++:** The generated Swift bridge does not mark `equals()` with `override` (since `HybridObject::equals` is not virtual in NitroModules).
+- **Build:** The example Podfile sanitizes `SWIFT_ACTIVE_COMPILATION_CONDITIONS` so it only contains Swift identifiers (e.g. `DEBUG`); any compiler flags are moved to `OTHER_SWIFT_FLAGS`. Use the same pattern in your app if you see related build errors.
+
+After running `npm run specs` (Nitrogen), `scripts/post-nitrogen-fix.sh` is run automatically to re-apply the Swift and C++ compatibility fixes to the generated files.
 
 ## Publishing to npm
 
