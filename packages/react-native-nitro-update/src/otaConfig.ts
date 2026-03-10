@@ -23,7 +23,7 @@ export interface OTAConfig {
 export interface CheckAndDownloadOptions {
   /** If true, call reloadApp() after a successful download. Default: false (apply on next launch). */
   reloadAfterDownload?: boolean
-  /** Current app version for minAppVersion check. If not set, minAppVersion in config is ignored. */
+  /** Current app version for minAppVersion check. If not set, reads from Info.plist / BuildConfig automatically. */
   appVersion?: string
 }
 
@@ -79,8 +79,9 @@ export async function checkAndDownloadFromConfig(
 ): Promise<{ updated: boolean; version?: string; skipped?: string }> {
   const { reloadAfterDownload = false, appVersion } = options
   const config = await fetchOTAConfig(configUrl)
-  if (config.minAppVersion != null && appVersion != null && appVersion !== '') {
-    if (compareVersions(appVersion, config.minAppVersion) < 0) {
+  const resolvedAppVersion = appVersion ?? bundleUpdater.getAppVersion()
+  if (config.minAppVersion != null && resolvedAppVersion !== '') {
+    if (compareVersions(resolvedAppVersion, config.minAppVersion) < 0) {
       return { updated: false, skipped: 'app_too_old' }
     }
   }

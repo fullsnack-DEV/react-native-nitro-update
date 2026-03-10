@@ -24,6 +24,9 @@ interface BundleUpdater extends HybridObject<{ ios: 'swift'; android: 'kotlin' }
   /** Path to the currently active bundle file, or null. */
   getStoredBundlePath(): string | null
 
+  /** Native app version from Info.plist (iOS) or BuildConfig (Android). */
+  getAppVersion(): string
+
   /** Restarts the app so the new bundle is loaded. */
   reloadApp(): void
 

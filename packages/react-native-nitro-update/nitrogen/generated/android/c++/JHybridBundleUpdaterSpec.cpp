@@ -93,6 +93,11 @@ namespace margelo::nitro::nitroupdate {
     auto __result = method(_javaPart);
     return __result->toCpp();
   }
+  std::string JHybridBundleUpdaterSpec::getAppVersion() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getAppVersion");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
   void JHybridBundleUpdaterSpec::reloadApp() {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("reloadApp");
     method(_javaPart);

@@ -7,8 +7,18 @@
   "types": "lib/index.d.ts",
   "react-native": "src/index",
   "source": "src/index",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
-    "setup-ota": "bin/setup-ota.js"
+    "react-native-nitro-update": "bin/cli.js",
+    "setup-ota": "bin/setup-ota.js",
+    "nitro-update-doctor": "bin/doctor.js"
   },
   "files": [
     "bin",
@@ -21,18 +31,15 @@
     "android/fix-prefab.gradle",
     "android/CMakeLists.txt",
     "android/src",
-    "cpp",
     "ios/**/*.h",
     "ios/**/*.m",
     "ios/**/*.mm",
     "ios/**/*.cpp",
     "ios/**/*.swift",
-    "app.plugin.js",
     "nitro.json",
     "NitroIsolatedBundle",
     "*.podspec",
-    "README.md",
-    "INTEGRATION.md"
+    "scripts/nitro_update_pod_utils.rb"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -41,7 +48,8 @@
     "lint-ci": "eslint \"**/*.{js,ts,tsx}\" -f @jamesacarr/github-actions",
     "typescript": "tsc",
     "specs": "tsc --noEmit false && nitrogen --logLevel=\"debug\" && bash scripts/post-nitrogen-fix.sh",
-    "prepublishOnly": "npm run typescript"
+    "validate": "node scripts/validate-package.js",
+    "prepublishOnly": "npm run typescript && npm run validate"
   },
   "keywords": [
     "react-native",
@@ -55,7 +63,7 @@
     "type": "git",
     "url": "git+https://github.com/fullsnack-DEV/react-native-nitro-update.git"
   },
-  "author": "",
+  "author": "fullsnack-DEV (https://github.com/fullsnack-DEV)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/fullsnack-DEV/react-native-nitro-update/issues"
@@ -77,12 +85,10 @@
     "react-native-nitro-modules": "*",
     "typescript": "^5.8.3"
   },
-  "dependencies": {
-    "react-native-nitro-modules": "^0.35.0"
-  },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-nitro-modules": ">=0.20.0"
   },
   "eslintConfig": {
     "root": true,

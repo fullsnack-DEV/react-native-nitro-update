@@ -6,6 +6,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.margelo.nitro.nitroupdate.NitroUpdateBundleLoader
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,7 +18,14 @@ class MainApplication : Application(), ReactApplication {
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },
+      jsBundleFilePath = getJSBundleFile(),
     )
+  }
+
+  private fun getJSBundleFile(): String? {
+    // In release builds, check for OTA bundle first
+    val otaBundlePath = NitroUpdateBundleLoader.getStoredBundlePath(this)
+    return otaBundlePath
   }
 
   override fun onCreate() {

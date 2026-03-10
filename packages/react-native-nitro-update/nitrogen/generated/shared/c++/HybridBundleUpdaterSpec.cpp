@@ -18,6 +18,7 @@ namespace margelo::nitro::nitroupdate {
       prototype.registerHybridMethod("downloadUpdate", &HybridBundleUpdaterSpec::downloadUpdate);
       prototype.registerHybridMethod("getStoredVersion", &HybridBundleUpdaterSpec::getStoredVersion);
       prototype.registerHybridMethod("getStoredBundlePath", &HybridBundleUpdaterSpec::getStoredBundlePath);
+      prototype.registerHybridMethod("getAppVersion", &HybridBundleUpdaterSpec::getAppVersion);
       prototype.registerHybridMethod("reloadApp", &HybridBundleUpdaterSpec::reloadApp);
       prototype.registerHybridMethod("confirmBundle", &HybridBundleUpdaterSpec::confirmBundle);
       prototype.registerHybridMethod("rollback", &HybridBundleUpdaterSpec::rollback);

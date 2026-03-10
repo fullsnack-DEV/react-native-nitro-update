@@ -51,7 +51,7 @@ namespace margelo::nitro::nitroupdate {
     inline size_t getExternalMemorySize() noexcept override {
       return _swiftPart.getMemorySize();
     }
-    bool equals(const std::shared_ptr<HybridObject>& other) {
+    bool equals(const std::shared_ptr<HybridObject>& other) override {
       if (auto otherCast = std::dynamic_pointer_cast<HybridBundleUpdaterSpecSwift>(other)) {
         return _swiftPart.equals(otherCast->_swiftPart);
       }
@@ -96,6 +96,14 @@ namespace margelo::nitro::nitroupdate {
     }
     inline std::variant<nitro::NullType, std::string> getStoredBundlePath() override {
       auto __result = _swiftPart.getStoredBundlePath();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::string getAppVersion() override {
+      auto __result = _swiftPart.getAppVersion();
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }

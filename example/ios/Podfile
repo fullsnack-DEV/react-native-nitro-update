@@ -5,14 +5,16 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
+# NitroUpdate pod utilities for Swift flag sanitization
+require_relative '../../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'
+
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# Static frameworks required for RN 0.84 + Swift AppDelegate (React_RCTAppDelegate module)
+linkage = ENV['USE_FRAMEWORKS'] || 'static'
+Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+use_frameworks! :linkage => linkage.to_sym
 
 target 'NitroUpdateExample' do
   config = use_native_modules!
@@ -32,29 +34,28 @@ target 'NitroUpdateExample' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
-    # SWIFT_ACTIVE_COMPILATION_CONDITIONS must only contain Swift identifiers (e.g. DEBUG), not compiler flags.
-    # Move any flag-like tokens to OTHER_SWIFT_FLAGS for react-native-nitro-modules compatibility.
-    def sanitize_swift_conditions(config)
-      conditions = config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS']
-      return unless conditions
-      raw = conditions.is_a?(Array) ? conditions.join(' ') : conditions.to_s
-      tokens = raw.split
-      idents = tokens.reject { |t| t.start_with?('-') }
-      flags = tokens.select { |t| t.start_with?('-') }
-      return unless flags.any?
-      config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = idents.empty? ? '$(inherited)' : idents.join(' ')
-      other = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
-      config.build_settings['OTHER_SWIFT_FLAGS'] = "#{other} #{flags.join(' ')}".strip
+
+    # Apply NitroUpdate fixes: Swift flag sanitization and C++ settings
+    NitroUpdatePodUtils.apply!(installer, app_project_name: 'NitroUpdateExample')
+
+    # Xcode 16+: SwiftUICore is not an allowed client for app targets; weak-link to avoid linker error
+    app_project_path = File.join(Pod::Config.instance.installation_root, '..', 'NitroUpdateExample.xcodeproj')
+    if File.exist?(app_project_path)
+      app_project = Xcodeproj::Project.open(app_project_path)
+      app_project.native_targets.each do |target|
+        target.build_configurations.each do |config|
+          flags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
+          flags = [flags] if flags.is_a?(String)
+          unless flags.any? { |f| f.to_s.include?('SwiftUICore') }
+            config.build_settings['OTHER_LDFLAGS'] = flags + ['-weak_framework', 'SwiftUICore']
+          end
+        end
+      end
+      app_project.save
     end
 
-    # Ensure C++ stdlib is available for pods that use C++ (e.g. NitroModules Null.hpp)
+    # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
     installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
-        config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
-        sanitize_swift_conditions(config)
-      end
-      # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
       if target.name == 'Pods-NitroUpdateExample'
         target.source_build_phase.files.each do |f|
           if f.file_ref && f.file_ref.path&.end_with?('.m')
@@ -63,28 +64,6 @@ target 'NitroUpdateExample' do
           end
         end
       end
-    end
-    installer.generated_projects.each do |project|
-      project.targets.each do |target|
-        target.build_configurations.each do |config|
-          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
-          config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
-          sanitize_swift_conditions(config)
-        end
-      end
-    end
-    # App target: ensure C++ when it pulls in pod headers
-    app_project_path = File.join(Pod::Config.instance.installation_root, '..', 'NitroUpdateExample.xcodeproj')
-    if File.exist?(app_project_path)
-      app_project = Xcodeproj::Project.open(app_project_path)
-      app_project.native_targets.each do |target|
-        target.build_configurations.each do |config|
-          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
-          config.build_settings['CLANG_CXX_STANDARD_LIBRARY'] = 'libc++'
-          sanitize_swift_conditions(config)
-        end
-      end
-      app_project.save
     end
   end
 end

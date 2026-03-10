@@ -119,4 +119,31 @@ enum OtaStorage {
     defaults.removeObject(forKey: previousVersionKey)
     defaults.removeObject(forKey: previousBundlePathKey)
   }
+  
+  // MARK: - App version tracking
+  
+  private static let appVersionAtInstallKey = "nitroupdate.appVersionAtInstall"
+  
+  /// Clears all OTA data when the native app version changes (e.g. App Store update).
+  /// An OTA bundle built for v1.0.0 could be incompatible with native code in v2.0.0,
+  /// so we invalidate and let the app start fresh from its embedded bundle.
+  static func invalidateIfAppVersionChanged() {
+    let currentAppVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    let storedAppVersion = defaults.string(forKey: appVersionAtInstallKey)
+    
+    if let storedAppVersion = storedAppVersion, storedAppVersion != currentAppVersion {
+      // Native app was updated; clear all OTA data
+      setStoredVersion(nil)
+      setStoredBundlePath(nil)
+      isPendingValidation = false
+      clearPrevious()
+      setBlacklist([])
+      lastCheckedRemoteVersion = nil
+      
+      // Clean up old bundle files
+      try? FileManager.default.removeItem(at: bundlesDirectory)
+    }
+    
+    defaults.set(currentAppVersion, forKey: appVersionAtInstallKey)
+  }
 }

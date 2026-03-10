@@ -12,19 +12,53 @@ yarn add react-native-nitro-update
 
 **Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically.
 
-**Quick setup (interactive wizard)** — after installing, run one of:
+**Quick setup (interactive wizard)** — after installing:
 
 ```bash
-# From any project that has react-native-nitro-update installed:
-npm run setupOTA
-
-# Or without adding a script (uses the package explicitly):
-npx -p react-native-nitro-update setup-ota
+npx react-native-nitro-update setup
+# or, if you added the script: npm run setupOTA
 ```
 
-The wizard asks how you want to host OTA (GitHub branch, S3, Firebase, API, etc.), then generates config files and a code snippet for your app.
+The wizard asks how you want to host OTA (GitHub branch, S3, Firebase, API, etc.), then generates config files and a code snippet for your app. It also adds an `ota:build` script so you can build the OTA zip with one command.
 
 **Using this in another project?** See **[INTEGRATION.md](./INTEGRATION.md)** for step-by-step: install, iOS/Android native wiring, JS auto-update snippet, hosting (e.g. GitHub Releases), and building the OTA zip.
+
+---
+
+## CLI
+
+The package ships a single CLI with three commands. Run from your **project root** (where `package.json` and `ios/` or `android/` live):
+
+| Command | Description |
+|--------|-------------|
+| `npx react-native-nitro-update build` | Build OTA bundle zip (runs `react-native bundle` + zip). Version is auto-detected from your native project. |
+| `npx react-native-nitro-update doctor` | Diagnose setup: Podfile, AppDelegate, MainApplication, Swift settings, Metro. Use `--json` for CI. |
+| `npx react-native-nitro-update setup` | Interactive wizard: hosting choice, config generation, native/JS snippets. |
+
+### Building the OTA zip (recommended)
+
+Use the **package-hosted** build command so you get improvements with every package update — no generated scripts to maintain:
+
+```bash
+# Auto-detects version from Info.plist (iOS) or build.gradle (Android)
+npx react-native-nitro-update build --platform ios
+
+# Explicit version and platform
+npx react-native-nitro-update build --platform android --version 1.0.2
+
+# Both platforms, custom output directory
+npx react-native-nitro-update build --platform both --output ./my-ota
+```
+
+**Options:** `--platform ios|android|both` (default: ios), `--version <string>`, `--entry <file>` (default: index.js), `--output <dir>` (default: ./ota-output), `--dev`. Run `npx react-native-nitro-update build --help` for details.
+
+After running, upload `ota-output/version.txt` and `ota-output/bundle.zip` to your CDN, GitHub Release, or S3. You can add a script to `package.json`:
+
+```json
+"ota:build": "npx react-native-nitro-update build --platform ios"
+```
+
+Then run `npm run ota:build` whenever you want to ship an OTA.
 
 ## Step-by-step: How to use this library
 
@@ -132,6 +166,7 @@ if (didRollback) reloadApp()
 | `downloadUpdate(downloadUrl, bundlePathInZip?, checksum?)` | Downloads zip, extracts bundle, optionally verifies SHA-256. |
 | `getStoredVersion()` | Current stored OTA version or `null`. |
 | `getStoredBundlePath()` | Path to the stored bundle (or `null`). |
+| `getAppVersion()` | Native app version from Info.plist (iOS) or BuildConfig (Android). |
 | `reloadApp()` | Restarts the app (iOS/Android). |
 | `confirmBundle()` | Marks the current bundle as valid; clears rollback data. |
 | `rollbackToPreviousBundle()` | Restores previous bundle; returns `true` if rollback was done. |
@@ -189,7 +224,7 @@ This library is inspired by [react-native-nitro-ota](https://github.com/riteshsh
 | **Download** | Zip from URL, optional progress | Same + optional SHA-256 checksum |
 | **Rollback / blacklist** | Yes, crash safety, confirm bundle | Same lifecycle (confirm, rollback, blacklist, history) |
 | **Background check** | Experimental (WorkManager / BGTaskScheduler) | Implemented: iOS BGTaskScheduler, Android WorkManager (min 15 min) |
-| **Extra in this lib** | — | Manifest-based check (`minAppVersion`, `targetVersions`), retry with backoff, optional checksum |
+| **Extra in this lib** | — | Manifest-based check (`minAppVersion`, `targetVersions`), retry with backoff, optional checksum, **package-hosted build CLI** (`npx react-native-nitro-update build`) |
 
 Same idea: check version → download zip → reload → confirm when the new bundle runs OK; rollback and blacklist if it doesn’t.
 

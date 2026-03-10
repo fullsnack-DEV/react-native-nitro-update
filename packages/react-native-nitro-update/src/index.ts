@@ -34,6 +34,14 @@ function emit(event: UpdateLifecycleEvent) {
 
 // --- Standalone API ---
 
+/**
+ * Returns the native app version from Info.plist (iOS) or PackageInfo (Android).
+ * Use this to compare against OTA versions or pass to manifest checks.
+ */
+export function getAppVersion(): string {
+  return bundleUpdater.getAppVersion()
+}
+
 export function checkForUpdate(versionCheckUrl: string): Promise<boolean> {
   return bundleUpdater.checkForUpdate(versionCheckUrl)
 }

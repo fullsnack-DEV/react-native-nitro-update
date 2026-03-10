@@ -12,6 +12,7 @@ import {
   downloadUpdate,
   confirmBundle,
   getStoredVersion,
+  getAppVersion,
   getRollbackHistory,
   rollbackToPreviousBundle,
   reloadApp,
@@ -25,8 +26,6 @@ const { versionUrl: VERSION_CHECK_URL, downloadUrl: DOWNLOAD_URL } = githubOTA({
   bundlePath: 'bundle.zip',
   useReleases: true,
 })
-
-const BUILD_LABEL = '1.0.7'
 
 type OTAStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'up_to_date' | 'error'
 
@@ -142,7 +141,7 @@ function App() {
     <View style={styles.container}>
       <View style={styles.hero}>
         <Text style={styles.title}>My App</Text>
-        <Text style={styles.buildLabel}>Build {BUILD_LABEL}</Text>
+        <Text style={styles.buildLabel}>Version {getAppVersion()}</Text>
         {storedVersion != null && (
           <Text style={styles.otaLabel}>OTA: {storedVersion}</Text>
         )}
@@ -158,7 +157,7 @@ function App() {
 
       <View style={styles.content}>
         <Text style={styles.contentText}>
-          OTA updates run automatically.{'\n'}No buttons needed for your users.
+     This is After OTA screen
         </Text>
       </View>
 
@@ -228,7 +227,7 @@ function bannerColor(status: OTAStatus) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'green' },
+  container: { flex: 1, backgroundColor: 'hotpink' },
 
   hero: { paddingTop: 64, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: '#0a7ea4' },
   title: { fontSize: 28, fontWeight: '700', color: '#fff' },

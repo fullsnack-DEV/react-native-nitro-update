@@ -37,6 +37,20 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
 
   override val memorySize: Long get() = 0L
 
+  init {
+    OtaStorage.invalidateIfAppVersionChanged()
+  }
+
+  override fun getAppVersion(): String {
+    return try {
+      val ctx = com.margelo.nitro.NitroModules.applicationContext
+        ?: return "0.0.0"
+      ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.0.0"
+    } catch (_: Exception) {
+      "0.0.0"
+    }
+  }
+
   override fun checkForUpdate(versionCheckUrl: String): Promise<Boolean> = Promise.async {
     val url = URL(versionCheckUrl)
     val conn = url.openConnection() as HttpURLConnection

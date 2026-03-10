@@ -214,6 +214,19 @@ Put `version.txt` and `bundle.zip` at two URLs and pass those URLs to `checkForU
 
 ## 6. Build the zip for each OTA
 
+**Recommended:** use the package-hosted CLI (version is auto-detected from your native project, assets are included automatically):
+
+```bash
+# From your project root
+npx react-native-nitro-update build --platform ios
+# Or both platforms:
+npx react-native-nitro-update build --platform both
+```
+
+Output goes to `ota-output/` by default: `version.txt` and `bundle.zip`. Upload both to your release or CDN. Add a script to `package.json` if you like: `"ota:build": "npx react-native-nitro-update build --platform ios"`.
+
+**Manual build** (if you prefer or need custom paths):
+
 From your **project root**, using your app’s entry file and bundle name:
 
 ```bash
@@ -229,13 +242,15 @@ npx react-native bundle \
   --bundle-output ota-release/index.ios.jsbundle \
   --assets-dest ota-release
 
-# Zip (bundle file name must match what the library expects; typically index.ios.jsbundle or main.jsbundle)
+# Zip - IMPORTANT: include the assets folder if your app uses images
 cd ota-release
-zip bundle.zip index.ios.jsbundle version.txt
+zip -r bundle.zip index.ios.jsbundle assets version.txt
 # Or for Android: use the android bundle output and same version.txt
 ```
 
-Then upload `version.txt` and `bundle.zip` to your release or CDN. The library expects the zip to contain the JS bundle file (e.g. `index.ios.jsbundle` or `main.jsbundle`) and will use it after unzipping.
+**Important:** If your app uses images via `require('./image.png')` or similar, you **must** include the `assets` folder in the zip. The package-hosted `build` command does this automatically. For manual builds, use the `-r` flag so the assets directory is included. Without it, images will not load from OTA bundles.
+
+Then upload `version.txt` and `bundle.zip` to your release or CDN. The library expects the zip to contain the JS bundle file (e.g. `index.ios.jsbundle` or `main.jsbundle`) and will use it after unzipping. Assets are extracted alongside the bundle and will be resolved by React Native.
 
 ---
 
@@ -255,6 +270,6 @@ Then upload `version.txt` and `bundle.zip` to your release or CDN. The library e
 | 3 | Android: Use `NitroUpdateBundleLoader.getStoredBundlePath(context)` when loading the JS bundle in release |
 | 4 | JS: Call `checkForUpdate` → `downloadUpdate` after launch (e.g. in `useEffect` + `InteractionManager`), **without** calling `reloadApp()` |
 | 5 | Host `version.txt` and `bundle.zip` (e.g. GitHub Releases or your CDN) |
-| 6 | Build the zip with `react-native bundle` + `zip`, then upload for each new OTA version |
+| 6 | Build the zip: `npx react-native-nitro-update build --platform ios` (or manual `react-native bundle` + `zip`), then upload for each new OTA version |
 
 Result: users get the update in the background; the new bundle is used on the **next** app cold start.

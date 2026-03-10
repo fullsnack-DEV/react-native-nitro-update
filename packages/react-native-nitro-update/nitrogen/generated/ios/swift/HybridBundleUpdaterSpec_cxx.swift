@@ -239,6 +239,18 @@ open class HybridBundleUpdaterSpec_cxx {
   }
   
   @inline(__always)
+  public final func getAppVersion() -> bridge.Result_std__string_ {
+    do {
+      let __result = try self.__implementation.getAppVersion()
+      let __resultCpp = std.string(__result)
+      return bridge.create_Result_std__string_(__resultCpp)
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_std__string_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
   public final func reloadApp() -> bridge.Result_void_ {
     do {
       try self.__implementation.reloadApp()

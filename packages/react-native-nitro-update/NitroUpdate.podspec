@@ -10,23 +10,26 @@ Pod::Spec.new do |s|
   s.license      = package["license"]
   s.authors      = package["author"]
 
-  s.platforms    = { :ios => min_ios_version_supported, :visionos => 1.0 }
-  s.source       = { :git => "https://github.com/mrousavy/nitro.git", :tag => "#{s.version}" }
+  s.platforms    = { :ios => defined?(min_ios_version_supported) ? min_ios_version_supported : '13.0' }
+  s.source       = { :git => "https://github.com/fullsnack-DEV/react-native-nitro-update.git", :tag => "v#{s.version}" }
 
   s.source_files = [
-    # Implementation (Swift)
-    "ios/**/*.{swift}",
-    # Autolinking/Registration (Objective-C++)
-    "ios/**/*.{m,mm}",
-    # Implementation (C++ objects)
+    "ios/**/*.{swift,h,m,mm}",
     "cpp/**/*.{hpp,cpp}",
   ]
 
-  load 'nitrogen/generated/ios/NitroUpdate+autolinking.rb'
-  add_nitrogen_files(s)
+  s.public_header_files = "ios/**/*.h"
 
-  s.dependency 'NitroUpdateBundleManager'
+  s.dependency 'NitroUpdateBundleManager', s.version.to_s
   s.dependency 'React-jsi'
   s.dependency 'React-callinvoker'
-  install_modules_dependencies(s)
+  s.dependency 'React-Core'
+
+  nitrogen_path = File.join(__dir__, 'nitrogen/generated/ios/NitroUpdate+autolinking.rb')
+  if File.exist?(nitrogen_path)
+    load nitrogen_path
+    add_nitrogen_files(s) if defined?(add_nitrogen_files)
+  end
+
+  install_modules_dependencies(s) if defined?(install_modules_dependencies)
 end

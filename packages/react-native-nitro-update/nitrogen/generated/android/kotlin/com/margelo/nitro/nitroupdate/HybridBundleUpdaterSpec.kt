@@ -48,6 +48,10 @@ abstract class HybridBundleUpdaterSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun getAppVersion(): String
+  
+  @DoNotStrip
+  @Keep
   abstract fun reloadApp(): Unit
   
   @DoNotStrip

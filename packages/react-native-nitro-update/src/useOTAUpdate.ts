@@ -5,6 +5,7 @@ import {
   downloadUpdate,
   confirmBundle,
   getStoredVersion,
+  getAppVersion,
   reloadApp,
 } from './index'
 
@@ -49,6 +50,8 @@ export interface UseOTAUpdateResult {
   status: OTAStatus
   error: string | null
   storedVersion: string | null
+  /** Native app version from Info.plist (iOS) or BuildConfig (Android) */
+  appVersion: string
   /** Manually trigger a check + download cycle */
   checkNow: () => void
 }
@@ -132,5 +135,7 @@ export function useOTAUpdate(options: UseOTAUpdateOptions): UseOTAUpdateResult {
     return () => sub.remove()
   }, [checkOnForeground, runUpdate])
 
-  return { status, error, storedVersion, checkNow: runUpdate }
+  const appVersion = getAppVersion()
+
+  return { status, error, storedVersion, appVersion, checkNow: runUpdate }
 }

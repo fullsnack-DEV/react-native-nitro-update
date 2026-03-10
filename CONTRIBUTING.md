@@ -41,6 +41,66 @@ Thank you for considering contributing. Here’s how to get started.
 - **Native code:** `packages/react-native-nitro-update/ios` and `packages/react-native-nitro-update/android`
 - **Docs:** README and INTEGRATION.md in the package; update them if you change behavior or APIs.
 
+## Release checklist
+
+Before publishing a new version:
+
+1. **Update version**
+   ```bash
+   cd packages/react-native-nitro-update
+   npm version patch  # or minor/major
+   ```
+
+2. **Run validation**
+   ```bash
+   npm run validate
+   ```
+   This checks:
+   - All files in `package.json` "files" exist
+   - No absolute/monorepo paths in code
+   - TypeScript compiles
+   - npm pack succeeds
+
+3. **Test the package locally**
+   ```bash
+   npm pack
+   # In a test RN app:
+   npm install /path/to/react-native-nitro-update-x.x.x.tgz
+   npx setup-ota doctor  # Should pass all checks
+   ```
+
+4. **Build and test example app**
+   ```bash
+   cd example
+   npx pod-install
+   npm run ios
+   npm run android
+   ```
+
+5. **Publish**
+   ```bash
+   cd packages/react-native-nitro-update
+   npm publish
+   ```
+
+6. **Tag release**
+   ```bash
+   git tag v$(node -p "require('./package.json').version")
+   git push origin --tags
+   ```
+
+## Troubleshooting builds
+
+Run the doctor command to diagnose issues:
+```bash
+npx setup-ota doctor
+npx setup-ota doctor --json  # For CI
+```
+
+Common issues:
+- **Swift compilation errors**: Add `NitroUpdatePodUtils.apply!(installer)` to Podfile
+- **Missing OTA loading**: Wire `NitroUpdateBundleManager` (iOS) or `NitroUpdateBundleLoader` (Android)
+
 ## Questions
 
 Open a [GitHub Issue](https://github.com/fullsnack-DEV/react-native-nitro-update/issues) for questions or ideas.

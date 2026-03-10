@@ -241,6 +241,15 @@ namespace margelo::nitro::nitroupdate::bridge::swift {
     return Result<std::variant<nitro::NullType, std::string>>::withError(error);
   }
   
+  // pragma MARK: Result<std::string>
+  using Result_std__string_ = Result<std::string>;
+  inline Result_std__string_ create_Result_std__string_(const std::string& value) noexcept {
+    return Result<std::string>::withValue(value);
+  }
+  inline Result_std__string_ create_Result_std__string_(const std::exception_ptr& error) noexcept {
+    return Result<std::string>::withError(error);
+  }
+  
   // pragma MARK: Result<void>
   using Result_void_ = Result<void>;
   inline Result_void_ create_Result_void_() noexcept {

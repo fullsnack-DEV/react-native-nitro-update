@@ -33,6 +33,13 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
   
   public override init() {
     super.init()
+    OtaStorage.invalidateIfAppVersionChanged()
+  }
+  
+  // MARK: - App version
+  
+  public func getAppVersion() throws -> String {
+    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
   }
   
   // MARK: - Version check

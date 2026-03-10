@@ -142,4 +142,33 @@ internal object OtaStorage {
   var bgIntervalSeconds: Long
     get() = prefs.getLong(KEY_BG_INTERVAL_SECONDS, 3600L).takeIf { it > 0 } ?: 3600L
     set(value) = prefs.edit().putLong(KEY_BG_INTERVAL_SECONDS, value).apply()
+
+  private const val KEY_APP_VERSION_AT_INSTALL = "appVersionAtInstall"
+
+  /**
+   * Clears all OTA data when the native app version changes (e.g. Play Store update).
+   * An OTA bundle built for v1.0.0 could be incompatible with native code in v2.0.0,
+   * so we invalidate and let the app start fresh from its embedded bundle.
+   */
+  fun invalidateIfAppVersionChanged() {
+    val ctx = try { context } catch (_: Exception) { return }
+    val currentAppVersion = try {
+      ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
+    } catch (_: Exception) { "" }
+
+    val storedAppVersion = prefs.getString(KEY_APP_VERSION_AT_INSTALL, null)
+
+    if (storedAppVersion != null && storedAppVersion != currentAppVersion) {
+      setStoredVersion(null)
+      setStoredBundlePath(null)
+      isPendingValidation = false
+      clearPrevious()
+      setBlacklist(emptyList())
+      lastCheckedRemoteVersion = null
+
+      try { getBundlesDir().deleteRecursively() } catch (_: Exception) {}
+    }
+
+    prefs.edit().putString(KEY_APP_VERSION_AT_INSTALL, currentAppVersion).apply()
+  }
 }

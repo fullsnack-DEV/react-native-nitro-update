@@ -2,8 +2,11 @@
 
 /**
  * Interactive OTA setup for react-native-nitro-update.
- * Run after install:  npx -p react-native-nitro-update setup-ota
- * Or (if lib is installed):  npm run setupOTA
+ * 
+ * Commands:
+ *   npx setup-ota          - Interactive setup wizard
+ *   npx setup-ota doctor   - Diagnose setup issues
+ *   npx setup-ota doctor --json  - JSON output for CI
  *
  * Walks the user through:
  *   1. Pick hosting method (GitHub branch, S3, Firebase, custom API, manual)
@@ -14,6 +17,13 @@
 const readline = require('readline')
 const fs = require('fs')
 const path = require('path')
+
+// Handle subcommands
+const args = process.argv.slice(2)
+if (args[0] === 'doctor') {
+  require('./doctor.js')
+  return
+}
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -308,7 +318,12 @@ ${bundleBlocks}
 echo "Creating zip..."
 cd "$OUT_DIR"
 rm -f "$ZIP_NAME"
-zip -q "$ZIP_NAME" $BUNDLE_FILES version.txt
+# Include assets folder if it exists (for images)
+if [ -d "assets" ]; then
+  zip -rq "$ZIP_NAME" $BUNDLE_FILES assets version.txt
+else
+  zip -q "$ZIP_NAME" $BUNDLE_FILES version.txt
+fi
 
 echo ""
 echo "Done. OTA artifacts:"
@@ -318,8 +333,10 @@ ls -la "$OUT_DIR/$ZIP_NAME"
 `
 
   fs.writeFileSync(scriptPath, script, { mode: 0o755 })
-  console.log(`  ${GREEN}Created${RESET}  scripts/build-ota-zip.sh`)
+  console.log(`  ${GREEN}Created${RESET}  scripts/build-ota-zip.sh  ${DIM}(legacy, kept for compatibility)${RESET}`)
 
+  const buildPlatform = config.platform === 'both' ? 'both' : config.platform
+  addNpmScript(appDir, 'ota:build', `npx react-native-nitro-update build --platform ${buildPlatform}`)
   addNpmScript(appDir, 'ota:zip', 'bash scripts/build-ota-zip.sh')
   addNpmScript(appDir, 'setupOTA', 'node -e "require(\'react-native-nitro-update/bin/setup-ota.js\')"')
 }
@@ -500,8 +517,9 @@ function printNextSteps(config) {
 
   steps.push('')
   steps.push('3. Build an OTA zip:')
-  steps.push('   npm run ota:zip            # uses version from package.json')
-  steps.push('   npm run ota:zip -- 1.0.5   # custom version')
+  steps.push('   npm run ota:build                                              # auto-detects version from native project')
+  steps.push('   npx react-native-nitro-update build --platform ios             # explicit platform')
+  steps.push('   npx react-native-nitro-update build --platform both --version 1.0.5  # explicit version')
 
   switch (config.method) {
     case 'github_branch':

@@ -6,6 +6,7 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "ota:build": "npx react-native-nitro-update build --platform ios",
     "ota:zip": "bash scripts/build-ota-zip-ios.sh",
     "setupOTA": "node -e \"require('react-native-nitro-update/bin/setup-ota.js')\"",
     "start": "react-native start",
