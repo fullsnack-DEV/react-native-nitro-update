@@ -57,6 +57,7 @@ yarn-error.log
 *.jsbundle
 ota-demo/
 ota-release/
+ota-output/
 
 # OTA secrets (copy .env.ota.example to .env.ota)
 .env.ota

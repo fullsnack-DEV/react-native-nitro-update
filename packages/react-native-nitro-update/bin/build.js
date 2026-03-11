@@ -33,6 +33,8 @@ function parseArgs(argv) {
       args.entry = argv[++i]
     } else if (arg === '--output' && argv[i + 1]) {
       args.output = argv[++i]
+    } else if (arg === '--upload' && argv[i + 1]) {
+      args.upload = argv[++i]
     } else if (arg === '--dev') {
       args.dev = true
     } else if (arg === '--help' || arg === '-h') {
@@ -40,6 +42,23 @@ function parseArgs(argv) {
     }
   }
   return args
+}
+
+function loadEnvFile(projectRoot) {
+  const envPath = path.join(projectRoot, '.env.ota')
+  if (!fs.existsSync(envPath)) return {}
+  const env = {}
+  const content = fs.readFileSync(envPath, 'utf8')
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    const value = trimmed.slice(eqIdx + 1).trim()
+    env[key] = value
+  }
+  return env
 }
 
 function printHelp() {
@@ -56,6 +75,7 @@ ${BOLD}Options:${RESET}
   --version <string>              OTA version string (auto-detected from native project if omitted)
   --entry <file>                  Entry file (default: index.js)
   --output <dir>                  Output directory (default: ./ota-output)
+  --upload <s3>                   Upload after build (reads credentials from .env.ota)
   --dev                           Dev build (default: false)
   -h, --help                      Show this help
 
@@ -63,6 +83,7 @@ ${BOLD}Examples:${RESET}
   npx react-native-nitro-update build --platform ios
   npx react-native-nitro-update build --platform android --version 1.0.2
   npx react-native-nitro-update build --platform both --output ./my-ota
+  npx react-native-nitro-update build --platform ios --upload s3
 `)
 }
 
@@ -134,7 +155,7 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit' })
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   if (args.help) {
@@ -245,9 +266,68 @@ ${GREEN}${BOLD}OTA build complete${RESET}
   ${BOLD}Zip:${RESET}       ${zipPath}
   ${BOLD}Size:${RESET}      ${sizeMB} MB
   ${BOLD}Contains:${RESET}  ${filesToZip.join(', ')}
+`)
 
-${DIM}Upload version.txt and ${zipName} to your CDN / GitHub Release / S3.${RESET}
+  // Upload if requested
+  if (args.upload) {
+    await upload(args.upload, outputDir, projectRoot)
+  } else {
+    console.log(`${DIM}Upload version.txt and ${zipName} to your CDN / GitHub Release / S3.${RESET}`)
+    console.log(`${DIM}Or re-run with --upload s3 to upload automatically.${RESET}\n`)
+  }
+}
+
+async function upload(destination, outputDir, projectRoot) {
+  if (destination !== 's3') {
+    console.error(`${RED}Error: --upload only supports "s3" currently.${RESET}`)
+    process.exit(1)
+  }
+
+  // Credentials only from .env.ota or env — never hardcode in source, .md, or comments.
+  const env = loadEnvFile(projectRoot)
+  const bucket = env.AWS_BUCKET || process.env.AWS_BUCKET
+  const region = env.AWS_REGION || process.env.AWS_REGION || 'us-east-1'
+  const prefix = (env.AWS_OTA_PREFIX || process.env.AWS_OTA_PREFIX || 'ota/').replace(/\/?$/, '/')
+  const accessKeyId = env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID
+  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY
+
+  if (!bucket) {
+    console.error(`${RED}Error: AWS_BUCKET not set. Add it to .env.ota or set as env variable.${RESET}`)
+    process.exit(1)
+  }
+  if (!accessKeyId || !secretAccessKey) {
+    console.error(`${RED}Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY required.${RESET}`)
+    console.error(`${DIM}Set them in .env.ota or as environment variables.${RESET}`)
+    process.exit(1)
+  }
+
+  const credentials = { accessKeyId, secretAccessKey }
+  const { uploadFile } = require('./s3-upload')
+
+  console.log(`${CYAN}Uploading to S3...${RESET}`)
+  console.log(`  Bucket: ${BOLD}${bucket}${RESET}  Region: ${BOLD}${region}${RESET}  Prefix: ${BOLD}${prefix}${RESET}\n`)
+
+  const versionPath = path.join(outputDir, 'version.txt')
+  const zipPath = path.join(outputDir, 'bundle.zip')
+
+  const versionUrl = await uploadFile(versionPath, bucket, `${prefix}version.txt`, region, credentials)
+  console.log(`  ${GREEN}Uploaded${RESET} version.txt  → ${versionUrl}`)
+
+  const bundleUrl = await uploadFile(zipPath, bucket, `${prefix}bundle.zip`, region, credentials)
+  console.log(`  ${GREEN}Uploaded${RESET} bundle.zip   → ${bundleUrl}`)
+
+  console.log(`
+${GREEN}${BOLD}S3 upload complete${RESET}
+
+  ${BOLD}Version URL:${RESET}   ${versionUrl}
+  ${BOLD}Bundle URL:${RESET}    ${bundleUrl}
+
+${DIM}Use these URLs in your app:${RESET}
+  const { versionUrl, downloadUrl } = otaUrls('https://${bucket}.s3.${region}.amazonaws.com/${prefix.slice(0, -1)}')
 `)
 }
 
-main()
+main().catch((err) => {
+  console.error(`${RED}Error: ${err.message}${RESET}`)
+  process.exit(1)
+})

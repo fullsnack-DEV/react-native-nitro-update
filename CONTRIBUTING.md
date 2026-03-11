@@ -40,6 +40,7 @@ Thank you for considering contributing. Here’s how to get started.
 - **Package source:** `packages/react-native-nitro-update/src`
 - **Native code:** `packages/react-native-nitro-update/ios` and `packages/react-native-nitro-update/android`
 - **Docs:** README and INTEGRATION.md in the package; update them if you change behavior or APIs.
+- **Security:** Do not add real API keys, AWS credentials, or other secrets to source files, any `.md` file, or comments. Use `.env.ota` or environment variables only; keep `.env.ota` in `.gitignore`.
 
 ## Release checklist
 
