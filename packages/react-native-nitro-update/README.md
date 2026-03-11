@@ -8,9 +8,11 @@ OTA (over-the-air) updates for React Native using [Nitro](https://github.com/nit
 npm install react-native-nitro-update
 # or
 yarn add react-native-nitro-update
+# or
+bun add react-native-nitro-update
 ```
 
-**Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically.
+**Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically. The repo supports **Bun** (`bun install`, `bun run <script>`); root `package.json` sets `packageManager` for Bun.
 
 **Quick setup (interactive wizard)** — after installing:
 
