@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-update",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",
@@ -39,7 +39,8 @@
     "nitro.json",
     "NitroIsolatedBundle",
     "*.podspec",
-    "scripts/nitro_update_pod_utils.rb"
+    "scripts/nitro_update_pod_utils.rb",
+    "scripts/run-cli.js"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
