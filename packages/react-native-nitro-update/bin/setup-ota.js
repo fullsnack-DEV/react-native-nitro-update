@@ -185,7 +185,9 @@ async function collectS3(config) {
 
   config.cloudfrontId = await ask('CloudFront distribution ID (optional, for cache invalidation)')
 
-  const publicUrl = await ask('Public URL where files will be served', `https://${config.bucket}.s3.${config.region}.amazonaws.com/${config.prefix}`)
+  const prefixForUrl = (config.prefix || 'ota/').trim().replace(/^\/+/, '').replace(/\/+$/, '') || 'ota'
+  const defaultPublicUrl = `https://${config.bucket}.s3.${config.region}.amazonaws.com/${prefixForUrl}`
+  const publicUrl = await ask('Public URL where files will be served', defaultPublicUrl)
   config.publicBaseUrl = publicUrl.replace(/\/$/, '')
 
   return config
