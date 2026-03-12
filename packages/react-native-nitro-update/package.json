@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-update",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",
@@ -51,7 +51,7 @@
     "typescript": "tsc",
     "specs": "tsc --noEmit false && nitrogen --logLevel=\"debug\" && bash scripts/post-nitrogen-fix.sh",
     "validate": "node scripts/validate-package.js",
-    "prepublishOnly": "npm run typescript && npm run validate"
+    "prepublishOnly": "npm run typescript && bash scripts/post-nitrogen-fix.sh && npm run validate"
   },
   "keywords": [
     "react-native",
@@ -90,7 +90,7 @@
   "peerDependencies": {
     "react": "*",
     "react-native": "*",
-    "react-native-nitro-modules": ">=0.20.0"
+    "react-native-nitro-modules": ">=0.35.0"
   },
   "eslintConfig": {
     "root": true,
