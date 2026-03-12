@@ -40,7 +40,8 @@
     "NitroIsolatedBundle",
     "*.podspec",
     "scripts/nitro_update_pod_utils.rb",
-    "scripts/run-cli.js"
+    "scripts/run-cli.js",
+    "scripts/post-nitrogen-fix.sh"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

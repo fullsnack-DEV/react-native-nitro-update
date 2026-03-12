@@ -21,6 +21,6 @@ public final class NitroUpdateAutolinking {
   }
   
   public static func isBundleUpdaterRecyclable() -> Bool {
-    return HybridBundleUpdater.self is any RecyclableView.Type
+    return HybridBundleUpdater.self is any HybridView.Type
   }
 }

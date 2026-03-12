@@ -211,11 +211,11 @@ ${DIM}Checking your project setup...${RESET}
     } else {
       this.addResult(
         'ios-swift-sanitizer',
-        'warning',
-        'Swift flag sanitization not configured',
+        'error',
+        'Swift flag sanitization not configured (required)',
         `Add to Podfile post_install:\n  require_relative '../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'\n  NitroUpdatePodUtils.apply!(installer)`
       )
-      this.log(WARN, 'Consider adding NitroUpdatePodUtils to Podfile')
+      this.log(FAIL, 'Missing NitroUpdatePodUtils Podfile wiring')
     }
   }
 

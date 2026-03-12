@@ -34,6 +34,7 @@ const RED = '\x1b[31m'
 const DIM = '\x1b[2m'
 const BOLD = '\x1b[1m'
 const RESET = '\x1b[0m'
+const NITRO_POD_UTILS_REQUIRE = "require_relative '../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'"
 
 function ask(question, fallback) {
   return new Promise((resolve) => {
@@ -127,6 +128,7 @@ async function main() {
   generateOtaConfig(appDir, config)
   generateBuildScript(appDir, config)
   generateFastfile(appDir, config)
+  ensureIosPodfileNitroSetup(appDir)
   printCodeSnippet(config)
   printNextSteps(config)
 
@@ -629,6 +631,56 @@ function printNextSteps(config) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
+
+function ensureIosPodfileNitroSetup(appDir) {
+  const podfilePath = path.join(appDir, 'ios', 'Podfile')
+  if (!fs.existsSync(podfilePath)) {
+    console.log(`  ${DIM}Skipped${RESET}  ios/Podfile patch  ${DIM}(Podfile not found)${RESET}`)
+    return
+  }
+
+  let content = fs.readFileSync(podfilePath, 'utf8')
+  let modified = false
+
+  if (!content.includes('nitro_update_pod_utils')) {
+    content = `${NITRO_POD_UTILS_REQUIRE}\n\n${content}`
+    modified = true
+  }
+
+  if (!content.includes('NitroUpdatePodUtils.apply!')) {
+    const postInstallRegex = /(^[ \t]*post_install do \|installer\|[^\n]*\n)([\s\S]*?)(^[ \t]*end\b.*$)/m
+    const postInstallMatch = content.match(postInstallRegex)
+
+    if (postInstallMatch) {
+      const blockIndent = (postInstallMatch[3].match(/^[ \t]*/) || [''])[0]
+      const applyIndent = `${blockIndent}  `
+      const applySnippet =
+        `${applyIndent}# Apply NitroUpdate fixes: Swift flag sanitization and C++ settings\n` +
+        `${applyIndent}NitroUpdatePodUtils.apply!(installer)\n`
+      const body = postInstallMatch[2]
+      const bodyWithTrailingNewline = body.endsWith('\n') ? body : `${body}\n`
+      const patchedBlock =
+        `${postInstallMatch[1]}${bodyWithTrailingNewline}${applySnippet}${postInstallMatch[3]}`
+
+      content = content.replace(postInstallRegex, patchedBlock)
+    } else {
+      const suffix = content.endsWith('\n') ? '' : '\n'
+      content +=
+        `${suffix}\npost_install do |installer|\n` +
+        `  NitroUpdatePodUtils.apply!(installer)\n` +
+        `end\n`
+    }
+    modified = true
+  }
+
+  if (!modified) {
+    console.log(`  ${DIM}Skipped${RESET}  ios/Podfile patch  ${DIM}(already configured)${RESET}`)
+    return
+  }
+
+  fs.writeFileSync(podfilePath, content)
+  console.log(`  ${GREEN}Updated${RESET}  ios/Podfile  ${DIM}(NitroUpdatePodUtils configured)${RESET}`)
+}
 
 function addToGitignore(appDir, entry) {
   const gitignorePath = path.join(appDir, '.gitignore')

@@ -325,7 +325,16 @@ This package is kept compatible with current **react-native-nitro-modules** so c
 
 - **Swift:** Generated autolinking uses `HybridView` (not `RecyclableView`).
 - **C++:** The generated Swift bridge does not mark `equals()` with `override` (since `HybridObject::equals` is not virtual in NitroModules).
-- **Build:** The example Podfile sanitizes `SWIFT_ACTIVE_COMPILATION_CONDITIONS` so it only contains Swift identifiers (e.g. `DEBUG`); any compiler flags are moved to `OTHER_SWIFT_FLAGS`. Use the same pattern in your app if you see related build errors.
+- **Build:** Your app `Podfile` should include NitroUpdate pod utils in `post_install`:
+  - `require_relative '../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'`
+  - `NitroUpdatePodUtils.apply!(installer)`
+  This sanitizes `SWIFT_ACTIVE_COMPILATION_CONDITIONS` and moves invalid compiler flags to `OTHER_SWIFT_FLAGS`.
+
+If you hit:
+
+`Conditional compilation flags must be valid Swift identifiers (rather than '-enable-bare-slash-regex')`
+
+add the Podfile wiring above and re-run `cd ios && pod install && cd ..`.
 
 After running `npm run specs` (Nitrogen), `scripts/post-nitrogen-fix.sh` is run automatically to re-apply the Swift and C++ compatibility fixes to the generated files.
 

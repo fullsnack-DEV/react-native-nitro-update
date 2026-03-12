@@ -34,6 +34,17 @@ target 'YourAppName' do
 end
 ```
 
+Also wire the NitroUpdate Podfile utilities in `post_install` (required to sanitize broken Swift flags in some RN/Xcode setups):
+
+```ruby
+require_relative '../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'
+
+post_install do |installer|
+  # ... your existing post_install (for example react_native_post_install)
+  NitroUpdatePodUtils.apply!(installer)
+end
+```
+
 Then:
 
 ```bash
@@ -84,7 +95,21 @@ post_install do |installer|
 end
 ```
 
-If you see Swift errors about `SWIFT_ACTIVE_COMPILATION_CONDITIONS` (e.g. flags like `-enable-bare-slash-regex`), that setting must contain only Swift identifiers (e.g. `DEBUG`); move compiler flags to `OTHER_SWIFT_FLAGS`. The [example Podfile](../../example/ios/Podfile) includes a `sanitize_swift_conditions` helper you can reuse.
+`NitroUpdatePodUtils.apply!(installer)` also sanitizes `SWIFT_ACTIVE_COMPILATION_CONDITIONS` so it only contains Swift identifiers (e.g. `DEBUG`) and moves compiler flags to `OTHER_SWIFT_FLAGS`.
+
+Troubleshooting:
+
+If you hit this exact error during iOS build:
+
+`Conditional compilation flags must be valid Swift identifiers (rather than '-enable-bare-slash-regex')`
+
+it means your Podfile is missing the NitroUpdate sanitizer wiring above (or pods were not reinstalled after adding it). Add the snippet in `Podfile` and re-run:
+
+```bash
+cd ios && pod install && cd ..
+```
+
+See the [example Podfile](../../example/ios/Podfile) for a working reference.
 
 ---
 
