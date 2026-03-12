@@ -156,11 +156,53 @@ function checkNpmPack() {
   }
 }
 
+function checkNitrogenCompat() {
+  console.log('\nChecking Nitrogen generated code compatibility...')
+
+  const autolinking = path.join(ROOT, 'nitrogen/generated/ios/NitroUpdateAutolinking.swift')
+  if (fs.existsSync(autolinking)) {
+    const content = fs.readFileSync(autolinking, 'utf8')
+    if (content.includes('RecyclableView.Type')) {
+      error(
+        'NitroUpdateAutolinking.swift uses RecyclableView.Type (incompatible). ' +
+        'Run "bash scripts/post-nitrogen-fix.sh" to apply the HybridView fix.'
+      )
+    }
+  }
+
+  const swiftHpp = path.join(ROOT, 'nitrogen/generated/ios/c++/HybridBundleUpdaterSpecSwift.hpp')
+  if (fs.existsSync(swiftHpp)) {
+    const content = fs.readFileSync(swiftHpp, 'utf8')
+    if (content.includes('equals(const std::shared_ptr<HybridObject>& other) override')) {
+      error(
+        'HybridBundleUpdaterSpecSwift.hpp has override on equals() (incompatible with some NitroModules versions). ' +
+        'Run "bash scripts/post-nitrogen-fix.sh" to remove it.'
+      )
+    }
+  }
+
+  const androidHpp = path.join(ROOT, 'nitrogen/generated/android/c++/JHybridBundleUpdaterSpec.hpp')
+  if (fs.existsSync(androidHpp)) {
+    const content = fs.readFileSync(androidHpp, 'utf8')
+    if (!content.includes('JHybridObject::CxxPart')) {
+      error(
+        'JHybridBundleUpdaterSpec.hpp missing JHybridObject::CxxPart. ' +
+        'Regenerate with nitrogen >=0.35.0 via "npm run specs".'
+      )
+    }
+  }
+
+  if (!hasErrors) {
+    success('Nitrogen generated code is compatible')
+  }
+}
+
 function main() {
   console.log(`${BOLD}Validating react-native-nitro-update package...${RESET}`)
   
   checkFilesExist()
   checkNoAbsolutePaths()
+  checkNitrogenCompat()
   checkTypeScript()
   checkNpmPack()
   
