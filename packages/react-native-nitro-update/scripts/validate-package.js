@@ -39,21 +39,34 @@ function success(msg) {
 
 function checkFilesExist() {
   console.log('\nChecking package.json files...')
-  
+
   const pkgPath = path.join(ROOT, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
   const files = pkg.files || []
-  
+
+  // If "lib" is in files but missing, build it first (e.g. after "clean" or when running validate alone)
+  if (files.includes('lib') && !fs.existsSync(path.join(ROOT, 'lib'))) {
+    if (pkg.scripts && pkg.scripts.typescript) {
+      console.log('  Building lib (npm run typescript)...')
+      try {
+        execSync('npm run typescript', { cwd: ROOT, stdio: 'pipe' })
+      } catch (e) {
+        error('Could not build lib. Run "npm run typescript" and fix errors.')
+        return
+      }
+    }
+  }
+
   for (const pattern of files) {
     // Skip glob patterns for now, just check direct paths
     if (pattern.includes('*')) continue
-    
+
     const fullPath = path.join(ROOT, pattern)
     if (!fs.existsSync(fullPath)) {
       error(`File in package.json "files" does not exist: ${pattern}`)
     }
   }
-  
+
   success('package.json files field validated')
 }
 
