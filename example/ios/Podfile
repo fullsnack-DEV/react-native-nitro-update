@@ -27,7 +27,7 @@ target 'NitroUpdateExample' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  post_install do |installer|
+post_install do |installer|
     react_native_post_install(
       installer,
       config[:reactNativePath],
@@ -49,6 +49,36 @@ target 'NitroUpdateExample' do
           unless flags.any? { |f| f.to_s.include?('SwiftUICore') }
             config.build_settings['OTHER_LDFLAGS'] = flags + ['-weak_framework', 'SwiftUICore']
           end
+
+          # RN 0.84 prebuilt React frameworks are built without renderer debug symbols.
+          # Ensure local pods don't force-enable REACT_NATIVE_DEBUG and explicitly link
+          # renderer debug/support frameworks to avoid undefined symbol errors.
+          cflags = config.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
+          cflags = [cflags] if cflags.is_a?(String)
+          unless cflags.any? { |f| f.to_s.include?('-UREACT_NATIVE_DEBUG') }
+            cflags << '-UREACT_NATIVE_DEBUG'
+          end
+          unless cflags.any? { |f| f.to_s.include?('-URN_ENABLE_DEBUG_STRING_CONVERTIBLE') }
+            cflags << '-URN_ENABLE_DEBUG_STRING_CONVERTIBLE'
+          end
+          config.build_settings['OTHER_CFLAGS'] = cflags
+
+          cxxflags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
+          cxxflags = [cxxflags] if cxxflags.is_a?(String)
+          unless cxxflags.any? { |f| f.to_s.include?('-UREACT_NATIVE_DEBUG') }
+            cxxflags << '-UREACT_NATIVE_DEBUG'
+          end
+          unless cxxflags.any? { |f| f.to_s.include?('-URN_ENABLE_DEBUG_STRING_CONVERTIBLE') }
+            cxxflags << '-URN_ENABLE_DEBUG_STRING_CONVERTIBLE'
+          end
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = cxxflags
+
+          %w[React_debug React_rendererdebug React_rendererconsistency React_renderercss].each do |framework_name|
+            unless flags.any? { |f| f.to_s == framework_name } || flags.each_cons(2).any? { |a, b| a.to_s == '-framework' && b.to_s == framework_name }
+              flags += ['-framework', framework_name]
+            end
+          end
+          config.build_settings['OTHER_LDFLAGS'] = flags
         end
       end
       app_project.save
@@ -56,6 +86,28 @@ target 'NitroUpdateExample' do
 
     # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
     installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        cflags = config.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
+        cflags = [cflags] if cflags.is_a?(String)
+        unless cflags.any? { |f| f.to_s.include?('-UREACT_NATIVE_DEBUG') }
+          cflags << '-UREACT_NATIVE_DEBUG'
+        end
+        unless cflags.any? { |f| f.to_s.include?('-URN_ENABLE_DEBUG_STRING_CONVERTIBLE') }
+          cflags << '-URN_ENABLE_DEBUG_STRING_CONVERTIBLE'
+        end
+        config.build_settings['OTHER_CFLAGS'] = cflags
+
+        cxxflags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
+        cxxflags = [cxxflags] if cxxflags.is_a?(String)
+        unless cxxflags.any? { |f| f.to_s.include?('-UREACT_NATIVE_DEBUG') }
+          cxxflags << '-UREACT_NATIVE_DEBUG'
+        end
+        unless cxxflags.any? { |f| f.to_s.include?('-URN_ENABLE_DEBUG_STRING_CONVERTIBLE') }
+          cxxflags << '-URN_ENABLE_DEBUG_STRING_CONVERTIBLE'
+        end
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = cxxflags
+      end
+
       if target.name == 'Pods-NitroUpdateExample'
         target.source_build_phase.files.each do |f|
           if f.file_ref && f.file_ref.path&.end_with?('.m')

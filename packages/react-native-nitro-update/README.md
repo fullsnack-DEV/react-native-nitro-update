@@ -42,7 +42,7 @@ The package ships a single CLI with three commands. Run from your **project root
 Use the **package-hosted** build command so you get improvements with every package update — no generated scripts to maintain:
 
 ```bash
-# Auto-detects version from Info.plist (iOS) or build.gradle (Android)
+# Auto-generates OTA version from native version + build number + UTC stamp
 npx react-native-nitro-update build --platform ios
 
 # Explicit version and platform
@@ -52,7 +52,9 @@ npx react-native-nitro-update build --platform android --version 1.0.2
 npx react-native-nitro-update build --platform both --output ./my-ota
 ```
 
-**Options:** `--platform ios|android|both` (default: ios), `--version <string>`, `--entry <file>` (default: index.js), `--output <dir>` (default: ./ota-output), `--dev`. Run `npx react-native-nitro-update build --help` for details.
+**Options:** `--platform ios|android|both` (default: ios), `--version <string>` (explicit override), `--entry <file>` (default: index.js), `--output <dir>` (default: ./ota-output), `--dev`. Run `npx react-native-nitro-update build --help` for details.
+By default, `version.txt` is generated as `<nativeVersion>+ota.<build>.<UTCSTAMP>` (example: `1.1.100+ota.100.202603191230`) to avoid collisions with future App Store/Play Store versions.
+When this `+ota` format is used, native `checkForUpdate` only accepts OTA versions whose `<nativeVersion>` matches the currently running app version.
 
 After running, upload `ota-output/version.txt` and `ota-output/bundle.zip` to your CDN, GitHub Release, or S3. You can add a script to `package.json`:
 
@@ -73,6 +75,7 @@ Then run `npm run ota:build` whenever you want to ship an OTA.
 3. **Wire native so the app loads the OTA bundle when present:**
    - **iOS:** In AppDelegate, use `NitroUpdateBundleManager.getStoredBundleURL()` in your `bundleURL()` (see [Native setup – iOS](#ios--load-ota-bundle)). Add the `NitroUpdateBundleManager` pod in the Podfile if needed.
    - **Android:** When building the React Native host, use `NitroUpdateBundleLoader.getStoredBundlePath(context)`; when it’s non-null, load the JS bundle from that path (see [Native setup – Android](#android--load-ota-bundle)).
+   - Native loaders automatically recover from unconfirmed OTA crash loops (`pendingValidation`), so host apps do not need custom rollback patches in `AppDelegate`/`MainApplication`.
 
 4. **In your app (JS):** Call `checkForUpdate(versionUrl)`. If it returns `true`, call `downloadUpdate(downloadUrl)`, then `reloadApp()`. After the app restarts on the new bundle, call `confirmBundle()` once you know the new bundle runs correctly (e.g. after a successful API call or screen load).
 
@@ -113,6 +116,7 @@ pod 'NitroUpdateBundleManager', :path => '../node_modules/react-native-nitro-upd
 ```
 
 (Adjust the path if your app lives in a subdirectory; e.g. from `example/ios` use `../../node_modules/react-native-nitro-update`.)
+`NitroUpdateBundleManager.getStoredBundleURL()` includes automatic recovery if a pending OTA bundle crashes before `confirmBundle()`.
 
 ### Android — load OTA bundle
 
@@ -128,6 +132,7 @@ NitroUpdateBundleLoader.getStoredBundlePath(context)?.let { path ->
 ```
 
 (Exact integration depends on your RN version and New Architecture; ensure the JS bundle is loaded from this path when available.)
+`NitroUpdateBundleLoader.getStoredBundlePath(context)` includes the same automatic pending-validation crash recovery on Android.
 
 ## Quick start
 
@@ -189,7 +194,8 @@ See `src/index.ts` and `src/updateManifest.ts` for full types and the `UpdateMan
 ## Lifecycle
 
 - After `downloadUpdate`, the new bundle is stored and marked **pending validation**. The app should `reloadApp()` and then call `confirmBundle()` once the new bundle has run successfully.
-- If the app crashes or you call `markCurrentBundleAsBad(reason)` before confirming, the next launch can roll back to the previous bundle (and the failed version can be blacklisted).
+- If the app crashes before `confirmBundle()`, native bundle loaders automatically recover on next launch by restoring the previous bundle (or embedded fallback when no previous bundle exists).
+- You can also call `markCurrentBundleAsBad(reason)` to blacklist the bad version and force rollback immediately.
 - Use `onUpdateLifecycle` and `onRollback` for UI or analytics.
 
 ## Checksum and retry

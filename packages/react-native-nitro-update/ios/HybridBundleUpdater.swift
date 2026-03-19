@@ -29,6 +29,21 @@ private func sanitizeVersion(_ s: String?) -> String? {
   return s.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+private func otaTargetAppVersion(from remoteVersion: String) -> String? {
+  guard let markerRange = remoteVersion.range(of: "+ota.") else { return nil }
+  let base = String(remoteVersion[..<markerRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+  return base.isEmpty ? nil : base
+}
+
+private func isRemoteVersionCompatibleWithCurrentApp(_ remoteVersion: String, appVersion: String) -> Bool {
+  guard let targetAppVersion = otaTargetAppVersion(from: remoteVersion) else {
+    // Legacy/custom version format: keep existing behavior.
+    return true
+  }
+  let current = appVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+  return !current.isEmpty && targetAppVersion == current
+}
+
 public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBundleUpdaterSpec_protocol {
   
   public override init() {
@@ -55,6 +70,11 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
       }
       let raw = String(data: data, encoding: .utf8) ?? ""
       guard let remoteVersion = sanitizeVersion(raw) else {
+        OtaStorage.lastCheckedRemoteVersion = nil
+        return false
+      }
+      let appVersion = (try? self.getAppVersion()) ?? "0.0.0"
+      guard isRemoteVersionCompatibleWithCurrentApp(remoteVersion, appVersion: appVersion) else {
         OtaStorage.lastCheckedRemoteVersion = nil
         return false
       }
@@ -301,6 +321,12 @@ extension HybridBundleUpdater {
     
     if fetchError != nil { task.setTaskCompleted(success: true); return }
     guard let remote = sanitizeVersion(remoteVersion) else { task.setTaskCompleted(success: true); return }
+    let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    guard isRemoteVersionCompatibleWithCurrentApp(remote, appVersion: appVersion) else {
+      OtaStorage.lastCheckedRemoteVersion = nil
+      task.setTaskCompleted(success: true)
+      return
+    }
     
     OtaStorage.lastCheckedRemoteVersion = remote
     let stored = OtaStorage.getStoredVersion()

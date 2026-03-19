@@ -31,6 +31,19 @@ private fun sanitizeVersion(s: String?): String? {
   return if (isValidVersionString(s)) s.trim() else null
 }
 
+private fun otaTargetAppVersion(remoteVersion: String): String? {
+  val markerIndex = remoteVersion.indexOf("+ota.")
+  if (markerIndex <= 0) return null
+  val base = remoteVersion.substring(0, markerIndex).trim()
+  return base.ifEmpty { null }
+}
+
+private fun isRemoteVersionCompatibleWithCurrentApp(remoteVersion: String, appVersion: String): Boolean {
+  val target = otaTargetAppVersion(remoteVersion) ?: return true
+  val current = appVersion.trim()
+  return current.isNotEmpty() && target == current
+}
+
 @Keep
 @DoNotStrip
 class HybridBundleUpdater : HybridBundleUpdaterSpec() {
@@ -63,6 +76,11 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
       val raw = conn.inputStream.bufferedReader().readText()
       val remoteVersion = sanitizeVersion(raw)
       if (remoteVersion == null) return@async false
+      val appVersion = getAppVersion()
+      if (!isRemoteVersionCompatibleWithCurrentApp(remoteVersion, appVersion)) {
+        OtaStorage.lastCheckedRemoteVersion = null
+        return@async false
+      }
       OtaStorage.lastCheckedRemoteVersion = remoteVersion
       val stored = sanitizeVersion(OtaStorage.getStoredVersion())
       if (OtaStorage.getBlacklist().contains(remoteVersion)) return@async false

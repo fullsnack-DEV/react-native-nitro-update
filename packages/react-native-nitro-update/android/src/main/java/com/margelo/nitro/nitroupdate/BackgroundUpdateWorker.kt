@@ -20,6 +20,23 @@ class BackgroundUpdateWorker(
   params: WorkerParameters
 ) : Worker(context, params) {
 
+  private fun otaTargetAppVersion(remoteVersion: String): String? {
+    val markerIndex = remoteVersion.indexOf("+ota.")
+    if (markerIndex <= 0) return null
+    val base = remoteVersion.substring(0, markerIndex).trim()
+    return base.ifEmpty { null }
+  }
+
+  private fun isRemoteVersionCompatibleWithCurrentApp(remoteVersion: String): Boolean {
+    val target = otaTargetAppVersion(remoteVersion) ?: return true
+    val appVersion = try {
+      applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0).versionName ?: ""
+    } catch (_: Exception) {
+      ""
+    }
+    return appVersion.isNotBlank() && target == appVersion.trim()
+  }
+
   override fun doWork(): Result {
     OtaStorage.overrideContext = applicationContext
     try {
@@ -28,6 +45,7 @@ class BackgroundUpdateWorker(
       if (versionCheckUrl.isEmpty()) return Result.success()
 
       val remoteVersion = fetchVersion(versionCheckUrl) ?: return Result.success()
+      if (!isRemoteVersionCompatibleWithCurrentApp(remoteVersion)) return Result.success()
       OtaStorage.lastCheckedRemoteVersion = remoteVersion.ifEmpty { null }
       val stored = OtaStorage.getStoredVersion()
       if (OtaStorage.getBlacklist().contains(remoteVersion)) return Result.success()

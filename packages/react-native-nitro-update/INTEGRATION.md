@@ -86,6 +86,7 @@ override func bundleURL() -> URL? {
 **If you use `RCTBundleURLProvider` elsewhere:** replace that with the same logic: in release, prefer `NitroUpdateBundleManager.getStoredBundleURL()`, then fall back to `Bundle.main.url(forResource: "main", withExtension: "jsbundle")`.
 
 The important part: **release builds** must call `NitroUpdateBundleManager.getStoredBundleURL()` first so the next launch after an OTA download uses the new bundle.
+`getStoredBundleURL()` also performs automatic recovery for unconfirmed OTA crashes (`pendingValidation`), so consumers do not need custom rollback logic in AppDelegate.
 
 ### 2.3 C++ build settings (if you hit C++ errors)
 
@@ -139,6 +140,7 @@ if (bundlePath != null) {
 ```
 
 The exact code depends on your React Native version and whether you use the New Architecture. The library only provides `getStoredBundlePath(context)`; your app must pass that path into the place that loads the JS bundle.
+`getStoredBundlePath(context)` includes the same automatic pending-validation crash recovery on Android.
 
 ---
 
@@ -247,7 +249,7 @@ Put `version.txt` and `bundle.zip` at two URLs and pass those URLs to `checkForU
 
 ## 6. Build the zip for each OTA
 
-**Recommended:** use the package-hosted CLI (version is auto-detected from your native project, assets are included automatically):
+**Recommended:** use the package-hosted CLI (OTA version is auto-generated from native version + build number + UTC stamp, assets included automatically):
 
 ```bash
 # From your project root
@@ -257,6 +259,8 @@ npx react-native-nitro-update build --platform both
 ```
 
 Output goes to `ota-output/` by default: `version.txt` and `bundle.zip`. Upload both to your release or CDN. Add a script to `package.json` if you like: `"ota:build": "npx react-native-nitro-update build --platform ios"`.
+Default `version.txt` format is `<nativeVersion>+ota.<build>.<UTCSTAMP>` (for example `1.1.100+ota.100.202603191230`), which avoids conflicts when your next app binary uses a version like `1.1.101`.
+With this format, `checkForUpdate` also enforces app-version compatibility by only accepting OTA entries whose `<nativeVersion>` matches the running app.
 
 **Manual build** (if you prefer or need custom paths):
 

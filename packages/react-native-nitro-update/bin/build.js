@@ -72,7 +72,7 @@ ${BOLD}Usage:${RESET}
 
 ${BOLD}Options:${RESET}
   --platform <ios|android|both>   Target platform (default: ios)
-  --version <string>              OTA version string (auto-detected from native project if omitted)
+  --version <string>              OTA version string (explicit override)
   --entry <file>                  Entry file (default: index.js)
   --output <dir>                  Output directory (default: ./ota-output)
   --upload <s3>                   Upload after build (reads credentials from .env.ota)
@@ -88,18 +88,28 @@ ${BOLD}Examples:${RESET}
 }
 
 function detectVersionFromNative(projectRoot, platform) {
+  const info = detectVersionInfoFromNative(projectRoot, platform)
+  return info ? info.version : null
+}
+
+function detectVersionInfoFromNative(projectRoot, platform) {
   if (platform === 'ios' || platform === 'both') {
-    const version = detectIOSVersion(projectRoot)
-    if (version) return version
+    const info = detectIOSVersionInfo(projectRoot)
+    if (info && info.version) return info
   }
   if (platform === 'android' || platform === 'both') {
-    const version = detectAndroidVersion(projectRoot)
-    if (version) return version
+    const info = detectAndroidVersionInfo(projectRoot)
+    if (info && info.version) return info
   }
   return null
 }
 
 function detectIOSVersion(projectRoot) {
+  const info = detectIOSVersionInfo(projectRoot)
+  return info ? info.version : null
+}
+
+function detectIOSVersionInfo(projectRoot) {
   const iosDir = path.join(projectRoot, 'ios')
   if (!fs.existsSync(iosDir)) return null
 
@@ -112,21 +122,36 @@ function detectIOSVersion(projectRoot) {
     if (!fs.existsSync(pbxproj)) return null
 
     const content = fs.readFileSync(pbxproj, 'utf8')
-    const match = content.match(/MARKETING_VERSION\s*=\s*([^;]+);/)
-    if (match) return match[1].trim()
+    const versionMatch = content.match(/MARKETING_VERSION\s*=\s*([^;]+);/)
+    const buildMatch = content.match(/CURRENT_PROJECT_VERSION\s*=\s*([^;]+);/)
+    const version = versionMatch ? versionMatch[1].trim() : null
+    const build = buildMatch ? buildMatch[1].trim() : null
+    if (version) return { version, build, source: 'ios' }
   } catch {}
   return null
 }
 
 function detectAndroidVersion(projectRoot) {
+  const info = detectAndroidVersionInfo(projectRoot)
+  return info ? info.version : null
+}
+
+function detectAndroidVersionInfo(projectRoot) {
   const gradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle')
   if (!fs.existsSync(gradlePath)) {
     const ktsPath = gradlePath + '.kts'
     if (fs.existsSync(ktsPath)) {
       try {
         const content = fs.readFileSync(ktsPath, 'utf8')
-        const match = content.match(/versionName\s*=?\s*"([^"]+)"/)
-        if (match) return match[1]
+        const versionMatch = content.match(/versionName\s*=?\s*"([^"]+)"/)
+        const codeMatch = content.match(/versionCode\s*=?\s*(\d+)/)
+        if (versionMatch) {
+          return {
+            version: versionMatch[1].trim(),
+            build: codeMatch ? codeMatch[1].trim() : null,
+            source: 'android',
+          }
+        }
       } catch {}
     }
     return null
@@ -134,10 +159,45 @@ function detectAndroidVersion(projectRoot) {
 
   try {
     const content = fs.readFileSync(gradlePath, 'utf8')
-    const match = content.match(/versionName\s+["']([^"']+)["']/)
-    if (match) return match[1]
+    const versionMatch = content.match(/versionName\s+["']([^"']+)["']/)
+    const codeMatch = content.match(/versionCode\s+(\d+)/)
+    if (versionMatch) {
+      return {
+        version: versionMatch[1].trim(),
+        build: codeMatch ? codeMatch[1].trim() : null,
+        source: 'android',
+      }
+    }
   } catch {}
   return null
+}
+
+function utcStamp() {
+  const d = new Date()
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mi = String(d.getUTCMinutes()).padStart(2, '0')
+  return `${yyyy}${mm}${dd}${hh}${mi}`
+}
+
+function sanitizeVersionToken(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[<>\s]+/g, '')
+    .replace(/[^A-Za-z0-9._-]/g, '-')
+}
+
+function buildAutoOtaVersion(nativeVersion, nativeBuild) {
+  const base = sanitizeVersionToken(nativeVersion) || '0.0.0'
+  const build = sanitizeVersionToken(nativeBuild) || '0'
+  const stamp = utcStamp()
+  const suffix = `+ota.${build}.${stamp}`
+  const maxLen = 64
+  if ((base + suffix).length <= maxLen) return base + suffix
+  const truncatedBase = base.slice(0, Math.max(1, maxLen - suffix.length))
+  return truncatedBase + suffix
 }
 
 function detectVersionFromPackageJson(projectRoot) {
@@ -174,18 +234,24 @@ async function main() {
     process.exit(1)
   }
 
-  // Resolve version: CLI flag > native project > package.json > error
+  // Resolve version:
+  // 1) --version explicit
+  // 2) auto-generate from native version + native build + UTC stamp
+  // 3) fallback to package.json version + UTC stamp
   let version = args.version
   if (!version) {
-    version = detectVersionFromNative(projectRoot, platform)
-    if (version) {
-      console.log(`${GREEN}Auto-detected version from native project: ${BOLD}${version}${RESET}`)
+    const nativeInfo = detectVersionInfoFromNative(projectRoot, platform)
+    if (nativeInfo && nativeInfo.version) {
+      version = buildAutoOtaVersion(nativeInfo.version, nativeInfo.build)
+      const buildLabel = nativeInfo.build ? `, build ${nativeInfo.build}` : ''
+      console.log(`${GREEN}Auto-generated OTA version from ${nativeInfo.source} native version ${BOLD}${nativeInfo.version}${RESET}${buildLabel}: ${BOLD}${version}${RESET}`)
     }
   }
   if (!version) {
-    version = detectVersionFromPackageJson(projectRoot)
-    if (version) {
-      console.log(`${YELLOW}Using version from package.json: ${BOLD}${version}${RESET}`)
+    const pkgVersion = detectVersionFromPackageJson(projectRoot)
+    if (pkgVersion) {
+      version = buildAutoOtaVersion(pkgVersion, null)
+      console.log(`${YELLOW}Auto-generated OTA version from package.json ${BOLD}${pkgVersion}${RESET}: ${BOLD}${version}${RESET}`)
     }
   }
   if (!version) {
