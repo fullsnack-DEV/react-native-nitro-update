@@ -83,10 +83,28 @@ override func bundleURL() -> URL? {
 }
 ```
 
+**If you use `AppDelegate.m` / `AppDelegate.mm`:**
+
+```objc
+#import <NitroUpdateBundleManager/NitroUpdateBundleManagerObjC.h>
+
+- (NSURL *)bundleURL
+{
+#if DEBUG
+  return [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index"];
+#else
+  NSURL *otaURL = [NitroUpdateBundleManagerObjC getStoredBundleURL];
+  return otaURL ?: [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
+#endif
+}
+```
+
 **If you use `RCTBundleURLProvider` elsewhere:** replace that with the same logic: in release, prefer `NitroUpdateBundleManager.getStoredBundleURL()`, then fall back to `Bundle.main.url(forResource: "main", withExtension: "jsbundle")`.
 
 The important part: **release builds** must call `NitroUpdateBundleManager.getStoredBundleURL()` first so the next launch after an OTA download uses the new bundle.
 `getStoredBundleURL()` also performs automatic recovery for unconfirmed OTA crashes (`pendingValidation`), so consumers do not need custom rollback logic in AppDelegate.
+For ObjC/ObjC++ entrypoints, `NitroUpdateBundleManagerObjC.getStoredBundleURL()` provides the same behavior.
+Do **not** add app-side custom rollback/crash patches; rollback is owned by the library loader/crash guard.
 
 ### 2.3 C++ build settings (if you hit C++ errors)
 

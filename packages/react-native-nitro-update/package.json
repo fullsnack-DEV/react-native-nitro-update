@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-update",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",
@@ -25,6 +25,7 @@
     "src",
     "lib",
     "INTEGRATION.md",
+    "CHANGELOG.md",
     "react-native.config.js",
     "nitrogen",
     "android/build.gradle",
@@ -82,11 +83,11 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
-    "nitrogen": "*",
+    "nitrogen": "^0.35.0",
     "prettier": "^3.3.3",
     "react": "19.2.0",
     "react-native": "0.83.0",
-    "react-native-nitro-modules": "*",
+    "react-native-nitro-modules": "^0.35.0",
     "typescript": "^5.8.3"
   },
   "peerDependencies": {

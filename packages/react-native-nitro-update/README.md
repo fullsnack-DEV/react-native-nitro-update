@@ -91,7 +91,7 @@ That’s the full flow: **host version + zip → native loads stored bundle when
 
 ### iOS — load OTA bundle
 
-Use the **NitroUpdateBundleManager** pod (Swift-only, no C++) in AppDelegate so the app target does not pull in C++ headers. Add the bundle manager pod from the same path as the main library, then in your delegate:
+Use the **NitroUpdateBundleManager** pod (Swift + ObjC/ObjC++, no C++) in AppDelegate so the app target does not pull in C++ headers. Add the bundle manager pod from the same path as the main library, then in your delegate:
 
 ```swift
 import NitroUpdateBundleManager
@@ -117,6 +117,24 @@ pod 'NitroUpdateBundleManager', :path => '../node_modules/react-native-nitro-upd
 
 (Adjust the path if your app lives in a subdirectory; e.g. from `example/ios` use `../../node_modules/react-native-nitro-update`.)
 `NitroUpdateBundleManager.getStoredBundleURL()` includes automatic recovery if a pending OTA bundle crashes before `confirmBundle()`.
+
+If your app uses `AppDelegate.m`/`AppDelegate.mm`, use the ObjC API:
+
+```objc
+#import <NitroUpdateBundleManager/NitroUpdateBundleManagerObjC.h>
+
+- (NSURL *)bundleURL
+{
+#if DEBUG
+  return [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index"];
+#else
+  NSURL *otaURL = [NitroUpdateBundleManagerObjC getStoredBundleURL];
+  return otaURL ?: [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
+#endif
+}
+```
+
+Do not add custom host-side rollback/crash patching in `AppDelegate`; loader and crash-guard rollback are handled by this library.
 
 ### Android — load OTA bundle
 
@@ -227,7 +245,7 @@ This library is inspired by [react-native-nitro-ota](https://github.com/riteshsh
 | Aspect | react-native-nitro-ota | react-native-nitro-update |
 |--------|------------------------|---------------------------|
 | **Tech** | Nitro Modules, JSI | Same (Nitro Modules, JSI) |
-| **iOS bundle loader** | Separate `NitroOtaBundleManager` pod (Swift-only) | Same: `NitroUpdateBundleManager` pod (Swift-only) to avoid C++ in app target |
+| **iOS bundle loader** | Separate `NitroOtaBundleManager` pod | Same: `NitroUpdateBundleManager` pod (Swift + ObjC/ObjC++) to avoid C++ in app target |
 | **Version check** | Plain `ota.version` or `ota.version.json` | Plain version URL or JSON manifest (`checkForUpdateFromManifest`) |
 | **Download** | Zip from URL, optional progress | Same + optional SHA-256 checksum |
 | **Rollback / blacklist** | Yes, crash safety, confirm bundle | Same lifecycle (confirm, rollback, blacklist, history) |
