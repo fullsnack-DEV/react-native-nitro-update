@@ -81,15 +81,17 @@ function signV4(method, url, headers, body, credentials) {
 
 function headRequest(url, credentials) {
   return new Promise((resolve, reject) => {
+    /** @type {Record<string, string>} */
     const headers = {}
     signV4('HEAD', url, headers, '', credentials)
 
     const parsed = new URL(url)
     const transport = parsed.protocol === 'https:' ? https : http
+    const port = parsed.port ? Number(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80)
     const req = transport.request(
       {
         hostname: parsed.hostname,
-        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        port,
         path: parsed.pathname + parsed.search,
         method: 'HEAD',
         headers,
@@ -231,7 +233,7 @@ async function verifyS3Write(bucket, prefix, region, credentials) {
   try {
     await putObject(url, body, 'text/plain', creds)
   } catch (err) {
-    if (err.message && err.message.includes('Invalid URL')) {
+    if (err instanceof Error && err.message.includes('Invalid URL')) {
       throw new Error(`${err.message} — bucket=${b}, region=${r}, key=${key}`)
     }
     throw err

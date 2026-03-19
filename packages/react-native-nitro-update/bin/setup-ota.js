@@ -20,10 +20,7 @@ const path = require('path')
 
 // Handle subcommands
 const args = process.argv.slice(2)
-if (args[0] === 'doctor') {
-  require('./doctor.js')
-  return
-}
+const isDoctorSubcommand = args[0] === 'doctor'
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -36,6 +33,42 @@ const BOLD = '\x1b[1m'
 const RESET = '\x1b[0m'
 const NITRO_POD_UTILS_REQUIRE = "require_relative '../node_modules/react-native-nitro-update/scripts/nitro_update_pod_utils'"
 
+/**
+ * @typedef {'github_branch' | 'github_release' | 's3' | 'firebase' | 'api' | 'manual'} SetupMethod
+ * @typedef {'ios' | 'android' | 'both'} SetupPlatform
+ * @typedef {'next_launch' | 'immediate'} SetupApplyMode
+ *
+ * @typedef {object} SetupConfig
+ * @property {SetupMethod} method
+ * @property {SetupPlatform=} platform
+ * @property {SetupApplyMode=} applyMode
+ * @property {string=} githubUrl
+ * @property {string=} branch
+ * @property {string=} versionFile
+ * @property {string=} bundleFile
+ * @property {string=} bucket
+ * @property {string=} region
+ * @property {string=} prefix
+ * @property {string=} accessKeyId
+ * @property {string=} secretAccessKey
+ * @property {string=} cloudfrontId
+ * @property {string=} publicBaseUrl
+ * @property {string=} projectId
+ * @property {string=} storagePrefix
+ * @property {string=} serviceAccountPath
+ * @property {string=} makePublic
+ * @property {string=} apiUrl
+ * @property {string=} apiKey
+ * @property {string=} apiHeader
+ * @property {string=} configJsonUrl
+ */
+
+/**
+ * @template T
+ * @typedef {{ value: T, label: string, hint?: string }} ChoiceOption
+ */
+
+/** @param {string} question @param {string=} fallback */
 function ask(question, fallback) {
   return new Promise((resolve) => {
     const suffix = fallback ? ` ${DIM}(${fallback})${RESET}` : ''
@@ -45,6 +78,24 @@ function ask(question, fallback) {
   })
 }
 
+/** @param {unknown} err @returns {string} */
+function getErrorMessage(err) {
+  if (err instanceof Error) return err.message
+  return String(err)
+}
+
+/** @param {unknown} err @returns {string} */
+function getErrorStack(err) {
+  if (err instanceof Error && err.stack) return err.stack
+  return ''
+}
+
+/**
+ * @template T
+ * @param {string} question
+ * @param {ChoiceOption<T>[]} options
+ * @returns {Promise<T>}
+ */
 function choose(question, options) {
   return new Promise((resolve) => {
     console.log(`\n${CYAN}?${RESET} ${BOLD}${question}${RESET}`)
@@ -76,15 +127,45 @@ ${CYAN}╔═══════════════════════�
 async function main() {
   banner()
 
-  const method = await choose('How do you want to host your OTA updates?', [
-    { value: 'github_branch', label: 'GitHub Branch',           hint: 'Push version.txt + bundle.zip to a branch (easiest, free)' },
-    { value: 'github_release', label: 'GitHub Releases',        hint: 'Attach assets to a GitHub Release' },
-    { value: 's3',             label: 'AWS S3',                  hint: 'Upload to S3 bucket (with optional CloudFront CDN)' },
-    { value: 'firebase',       label: 'Firebase Storage',       hint: 'Upload to Firebase / GCS bucket' },
-    { value: 'api',            label: 'Custom API / Backend',   hint: 'POST to your own server endpoint' },
-    { value: 'manual',         label: 'Manual / Any CDN',       hint: 'Just give me the code, I will host files myself' },
-  ])
+  /** @type {ChoiceOption<SetupMethod>[]} */
+  const methodOptions = [
+    {
+      value: 'github_branch',
+      label: 'GitHub Branch',
+      hint: 'Push version.txt + bundle.zip to a branch (easiest, free)',
+    },
+    {
+      value: 'github_release',
+      label: 'GitHub Releases',
+      hint: 'Attach assets to a GitHub Release',
+    },
+    {
+      value: 's3',
+      label: 'AWS S3',
+      hint: 'Upload to S3 bucket (with optional CloudFront CDN)',
+    },
+    {
+      value: 'firebase',
+      label: 'Firebase Storage',
+      hint: 'Upload to Firebase / GCS bucket',
+    },
+    {
+      value: 'api',
+      label: 'Custom API / Backend',
+      hint: 'POST to your own server endpoint',
+    },
+    {
+      value: 'manual',
+      label: 'Manual / Any CDN',
+      hint: 'Just give me the code, I will host files myself',
+    },
+  ]
+  const method = await choose(
+    'How do you want to host your OTA updates?',
+    methodOptions
+  )
 
+  /** @type {SetupConfig} */
   let config = { method }
 
   switch (method) {
@@ -108,17 +189,32 @@ async function main() {
       break
   }
 
-  const platform = await choose('Which platform(s)?', [
-    { value: 'ios',      label: 'iOS only' },
-    { value: 'android',  label: 'Android only' },
-    { value: 'both',     label: 'Both iOS and Android' },
-  ])
+  /** @type {ChoiceOption<SetupPlatform>[]} */
+  const platformOptions = [
+    { value: 'ios', label: 'iOS only' },
+    { value: 'android', label: 'Android only' },
+    { value: 'both', label: 'Both iOS and Android' },
+  ]
+  const platform = await choose('Which platform(s)?', platformOptions)
   config.platform = platform
 
-  const applyMode = await choose('When should the OTA update apply?', [
-    { value: 'next_launch',  label: 'Next app launch',  hint: 'Download in background, apply when user reopens (recommended)' },
-    { value: 'immediate',    label: 'Immediately',       hint: 'Restart the app right after download' },
-  ])
+  /** @type {ChoiceOption<SetupApplyMode>[]} */
+  const applyModeOptions = [
+    {
+      value: 'next_launch',
+      label: 'Next app launch',
+      hint: 'Download in background, apply when user reopens (recommended)',
+    },
+    {
+      value: 'immediate',
+      label: 'Immediately',
+      hint: 'Restart the app right after download',
+    },
+  ]
+  const applyMode = await choose(
+    'When should the OTA update apply?',
+    applyModeOptions
+  )
   config.applyMode = applyMode
 
   console.log(`\n${GREEN}${BOLD}Generating files...${RESET}\n`)
@@ -137,6 +233,7 @@ async function main() {
 
 // ─── Collectors ──────────────────────────────────────────────────────────
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectGithubBranch(config) {
   config.githubUrl = await ask('GitHub repo URL', 'https://github.com/owner/repo')
   config.branch = await ask('Branch name', 'main')
@@ -145,6 +242,7 @@ async function collectGithubBranch(config) {
   return config
 }
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectGithubRelease(config) {
   config.githubUrl = await ask('GitHub repo URL', 'https://github.com/owner/repo')
   config.versionFile = await ask('Version file name (release asset)', 'version.txt')
@@ -152,6 +250,7 @@ async function collectGithubRelease(config) {
   return config
 }
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectS3(config) {
   config.bucket = await ask('S3 bucket name')
   config.region = await ask('AWS region', 'us-east-1')
@@ -163,23 +262,25 @@ async function collectS3(config) {
   config.accessKeyId = await ask('AWS Access Key ID (or leave empty to set later)')
   config.secretAccessKey = await ask('AWS Secret Access Key (or leave empty to set later)')
 
+  const bucket = String(config.bucket || '').trim()
+  const region = String(config.region || '').trim()
+  const prefix = String(config.prefix || 'ota/').trim()
+
   if (config.accessKeyId && config.secretAccessKey) {
-    const bucket = String(config.bucket || '').trim()
-    const region = String(config.region || '').trim()
-    const prefix = String(config.prefix || 'ota/').trim()
     console.log(`\n${CYAN}Verifying S3 setup (uploading test file to ${bucket})...${RESET}`)
     console.log(`${DIM}  bucket=${bucket || '(empty)'}  region=${region || '(empty)'}  prefix=${prefix || '(empty)'}${RESET}`)
     try {
       const { verifyS3Write } = require('./s3-upload')
-      await verifyS3Write(config.bucket, config.prefix, config.region, {
+      await verifyS3Write(bucket, prefix, region, {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       })
       console.log(`${GREEN}${BOLD}Setup verified:${RESET} Upload to S3 works. You can use build --upload s3.\n`)
     } catch (err) {
-      console.log(`${RED}Verification failed: ${err.message}${RESET}`)
+      console.log(`${RED}Verification failed: ${getErrorMessage(err)}${RESET}`)
       if (process.env.DEBUG_OTA) {
-        console.log(`${DIM}${err.stack}${RESET}`)
+        const stack = getErrorStack(err)
+        if (stack) console.log(`${DIM}${stack}${RESET}`)
       }
       console.log(`${YELLOW}You can still continue; add or fix credentials in .env.ota later.${RESET}\n`)
     }
@@ -195,6 +296,7 @@ async function collectS3(config) {
   return config
 }
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectFirebase(config) {
   config.projectId = await ask('Firebase project ID')
   config.storagePrefix = await ask('Storage path prefix', 'ota/')
@@ -210,6 +312,7 @@ async function collectFirebase(config) {
   return config
 }
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectAPI(config) {
   config.apiUrl = await ask('Upload endpoint URL', 'https://your-api.com/ota/upload')
   config.apiKey = await ask('API key / secret (or leave empty to set later)')
@@ -220,14 +323,16 @@ async function collectAPI(config) {
   return config
 }
 
+/** @param {SetupConfig} config @returns {Promise<SetupConfig>} */
 async function collectManual(config) {
   config.publicBaseUrl = await ask('Base URL where you will host version.txt + bundle.zip', 'https://your-cdn.com/ota')
-  config.publicBaseUrl = config.publicBaseUrl.replace(/\/$/, '')
+  config.publicBaseUrl = (config.publicBaseUrl || '').replace(/\/$/, '')
   return config
 }
 
 // ─── Generators ──────────────────────────────────────────────────────────
 
+/** @param {string} appDir @param {SetupConfig} config */
 function generateEnvFile(appDir, config) {
   const envPath = path.join(appDir, '.env.ota')
   const examplePath = path.join(appDir, '.env.ota.example')
@@ -291,6 +396,7 @@ function generateEnvFile(appDir, config) {
  * Write ota-config.js so the app can import the public base URL (no secrets).
  * This way the app gets the OTA URL automatically from the wizard; no hardcoding.
  */
+/** @param {string} appDir @param {SetupConfig} config */
 function generateOtaConfig(appDir, config) {
   if (config.method !== 's3' && config.method !== 'firebase' && config.method !== 'manual') {
     return
@@ -309,6 +415,7 @@ module.exports = {
   console.log(`  ${GREEN}Created${RESET}  ota-config.js  ${DIM}(app will import baseUrl from here)${RESET}`)
 }
 
+/** @param {string} appDir @param {SetupConfig} config */
 function generateBuildScript(appDir, config) {
   const scriptsDir = path.join(appDir, 'scripts')
   const scriptPath = path.join(scriptsDir, 'build-ota-zip.sh')
@@ -400,6 +507,7 @@ ls -la "$OUT_DIR/$ZIP_NAME"
   addNpmScript(appDir, 'setupOTA', 'node -e "require(\'react-native-nitro-update/bin/setup-ota.js\')"')
 }
 
+/** @param {string} appDir @param {SetupConfig} config */
 function generateFastfile(appDir, config) {
   if (config.method === 'github_branch' || config.method === 'github_release' || config.method === 'manual') {
     console.log(`  ${DIM}Skipped${RESET}  Fastfile  ${DIM}(not needed for ${config.method})${RESET}`)
@@ -500,6 +608,7 @@ end
   console.log(`  ${GREEN}Created${RESET}  fastlane/Fastfile`)
 }
 
+/** @param {SetupConfig} config */
 function printCodeSnippet(config) {
   console.log(`\n${CYAN}${BOLD}── Code snippet ──${RESET}`)
   console.log(`${DIM}Add this to your App.tsx (or wherever you want OTA):${RESET}\n`)
@@ -536,6 +645,11 @@ function printCodeSnippet(config) {
   console.log(`\`\`\`typescript\n${importLine}\n\n${configLine}\n\n${checkLine}\n\`\`\`\n`)
 }
 
+/**
+ * @param {string} versionVar
+ * @param {string} downloadVar
+ * @param {SetupApplyMode | undefined} applyMode
+ */
 function buildCheckSnippet(versionVar, downloadVar, applyMode) {
   const reloadLine = applyMode === 'immediate' ? `\n    reloadApp()  // restart now` : `\n    // New bundle saved; will load on next app launch`
   return `// On mount (e.g. in useEffect):
@@ -549,6 +663,7 @@ if (hasUpdate) {
 }`
 }
 
+/** @param {SetupApplyMode | undefined} applyMode */
 function buildSingleUrlSnippet(applyMode) {
   const reloadOpt = applyMode === 'immediate' ? ', { reloadAfterDownload: true }' : ''
   return `// On mount:
@@ -562,6 +677,7 @@ if (updated) {
 }`
 }
 
+/** @param {SetupConfig} config */
 function printNextSteps(config) {
   console.log(`${GREEN}${BOLD}── Next steps ──${RESET}\n`)
 
@@ -632,6 +748,7 @@ function printNextSteps(config) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
+/** @param {string} appDir */
 function ensureIosPodfileNitroSetup(appDir) {
   const podfilePath = path.join(appDir, 'ios', 'Podfile')
   if (!fs.existsSync(podfilePath)) {
@@ -682,6 +799,7 @@ function ensureIosPodfileNitroSetup(appDir) {
   console.log(`  ${GREEN}Updated${RESET}  ios/Podfile  ${DIM}(NitroUpdatePodUtils configured)${RESET}`)
 }
 
+/** @param {string} appDir @param {string} entry */
 function addToGitignore(appDir, entry) {
   const gitignorePath = path.join(appDir, '.gitignore')
   if (!fs.existsSync(gitignorePath)) {
@@ -694,6 +812,7 @@ function addToGitignore(appDir, entry) {
   }
 }
 
+/** @param {string} appDir @param {string} name @param {string} command */
 function addNpmScript(appDir, name, command) {
   const pkgPath = path.join(appDir, 'package.json')
   if (!fs.existsSync(pkgPath)) return
@@ -710,7 +829,19 @@ function addNpmScript(appDir, name, command) {
   } catch {}
 }
 
-main().catch((err) => {
-  console.error(`${RED}Error: ${err.message}${RESET}`)
-  process.exit(1)
-})
+if (isDoctorSubcommand) {
+  const { Doctor } = require('./doctor.js')
+  const doctor = new Doctor(process.cwd(), { json: args.includes('--json') })
+  doctor
+    .run()
+    .then((exitCode) => process.exit(exitCode))
+    .catch((err) => {
+      console.error(`${RED}Error: ${err.message}${RESET}`)
+      process.exit(1)
+    })
+} else {
+  main().catch((err) => {
+    console.error(`${RED}Error: ${err.message}${RESET}`)
+    process.exit(1)
+  })
+}

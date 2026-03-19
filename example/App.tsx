@@ -25,7 +25,13 @@ import { baseUrl } from './ota-config';
 
 const { versionUrl, downloadUrl } = otaUrls(baseUrl);
 
-type OTAStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'up_to_date' | 'error';
+type OTAStatus =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'downloaded'
+  | 'up_to_date'
+  | 'error';
 
 const STATUS_LABEL: Record<OTAStatus, string> = {
   idle: 'Waiting…',
@@ -39,7 +45,9 @@ const STATUS_LABEL: Record<OTAStatus, string> = {
 function App() {
   const [otaStatus, setOtaStatus] = useState<OTAStatus>('idle');
   const [otaError, setOtaError] = useState<string | null>(null);
-  const [storedVersion, setStoredVersion] = useState<string | null>(() => getStoredVersion());
+  const [storedVersion, setStoredVersion] = useState<string | null>(() =>
+    getStoredVersion(),
+  );
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugMsg, setDebugMsg] = useState<string | null>(null);
   const [history, setHistory] = useState<RollbackRecord[]>([]);
@@ -138,7 +146,9 @@ function App() {
     try {
       const h = await getRollbackHistory();
       setHistory(h);
-      setDebugMsg(h.length > 0 ? `${h.length} rollback entries` : 'No rollback history.');
+      setDebugMsg(
+        h.length > 0 ? `${h.length} rollback entries` : 'No rollback history.',
+      );
     } catch (e) {
       setDebugMsg(`History: ${(e as Error).message}`);
     } finally {
@@ -146,7 +156,8 @@ function App() {
     }
   }, []);
 
-  const isBusy = otaStatus === 'checking' || otaStatus === 'downloading' || loading;
+  const isBusy =
+    otaStatus === 'checking' || otaStatus === 'downloading' || loading;
 
   return (
     <View style={styles.container}>
@@ -159,10 +170,18 @@ function App() {
       </View>
 
       <View style={[styles.banner, bannerColor(otaStatus)]}>
-        {isBusy && <ActivityIndicator color="#fff" size="small" style={styles.bannerSpinner} />}
+        {isBusy && (
+          <ActivityIndicator
+            color="#fff"
+            size="small"
+            style={styles.bannerSpinner}
+          />
+        )}
         <View style={styles.bannerBody}>
           <Text style={styles.bannerText}>{STATUS_LABEL[otaStatus]}</Text>
-          {otaError != null && <Text style={styles.bannerErrorText}>{otaError}</Text>}
+          {otaError != null && (
+            <Text style={styles.bannerErrorText}>{otaError}</Text>
+          )}
         </View>
       </View>
 
@@ -174,10 +193,17 @@ function App() {
         <Btn label="Check for update" onPress={runOTACheck} disabled={isBusy} />
 
         {otaStatus === 'downloaded' && (
-          <Btn label="Restart to load update" onPress={() => reloadApp()} bg="#15803d" />
+          <Btn
+            label="Restart to load update"
+            onPress={() => reloadApp()}
+            bg="#15803d"
+          />
         )}
 
-        <TouchableOpacity style={styles.debugToggle} onPress={() => setDebugOpen((v) => !v)}>
+        <TouchableOpacity
+          style={styles.debugToggle}
+          onPress={() => setDebugOpen(v => !v)}
+        >
           <Text style={styles.debugToggleText}>
             {debugOpen ? 'Hide' : 'Show'} Debug Panel
           </Text>
@@ -185,12 +211,32 @@ function App() {
 
         {debugOpen && (
           <View style={styles.debugPanel}>
-            <Btn label="Confirm bundle" onPress={handleConfirm} disabled={isBusy} />
-            <Btn label="Rollback to previous bundle" onPress={handleRollback} disabled={isBusy} bg="#b91c1c" />
-            <Btn label="Mark current bundle as bad" onPress={handleMarkBad} disabled={isBusy} bg="#92400e" />
-            <Btn label="View rollback history" onPress={handleHistory} disabled={isBusy} />
+            <Btn
+              label="Confirm bundle"
+              onPress={handleConfirm}
+              disabled={isBusy}
+            />
+            <Btn
+              label="Rollback to previous bundle"
+              onPress={handleRollback}
+              disabled={isBusy}
+              bg="#b91c1c"
+            />
+            <Btn
+              label="Mark current bundle as bad"
+              onPress={handleMarkBad}
+              disabled={isBusy}
+              bg="#92400e"
+            />
+            <Btn
+              label="View rollback history"
+              onPress={handleHistory}
+              disabled={isBusy}
+            />
 
-            {debugMsg != null && <Text style={styles.debugMsg}>{debugMsg}</Text>}
+            {debugMsg != null && (
+              <Text style={styles.debugMsg}>{debugMsg}</Text>
+            )}
 
             {history.length > 0 && (
               <View style={styles.historyBox}>
@@ -222,7 +268,11 @@ const Btn = React.memo(function Btn({
 }) {
   return (
     <TouchableOpacity
-      style={[styles.button, disabled && styles.buttonDisabled, bg ? { backgroundColor: bg } : undefined]}
+      style={[
+        styles.button,
+        disabled && styles.buttonDisabled,
+        bg ? { backgroundColor: bg } : undefined,
+      ]}
       onPress={onPress}
       disabled={disabled}
     >
@@ -246,7 +296,7 @@ function bannerColor(status: OTAStatus) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: 'green' },
 
   hero: {
     paddingTop: 64,
@@ -298,13 +348,23 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
 
-  debugToggle: { paddingVertical: 8, paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
+  debugToggle: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+  },
   debugToggleText: { fontSize: 13, color: '#0a7ea4', fontWeight: '500' },
 
   debugPanel: { width: '100%', paddingTop: 8 },
   debugMsg: { marginTop: 8, fontSize: 13, color: '#333', textAlign: 'center' },
 
-  historyBox: { marginTop: 12, padding: 12, backgroundColor: '#f3f4f6', borderRadius: 8 },
+  historyBox: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
   historyTitle: { fontWeight: '600', marginBottom: 4, fontSize: 13 },
   historyText: { fontSize: 13, color: '#555', marginBottom: 2 },
 });

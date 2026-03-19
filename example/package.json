@@ -6,10 +6,10 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
-    "ota:build": "node -e \"var p=require('path');var r=require.resolve('react-native-nitro-update/package.json');var d=p.dirname(r);var c=p.join(d,'bin/cli.js');process.argv=[process.argv[0],c,'build','--platform','ios'].concat(process.argv.slice(2));require(c);\"",
-    "ota:build:upload": "node -e \"var p=require('path');var r=require.resolve('react-native-nitro-update/package.json');var d=p.dirname(r);var c=p.join(d,'bin/cli.js');process.argv=[process.argv[0],c,'build','--platform','ios','--upload','s3'].concat(process.argv.slice(2));require(c);\"",
+    "ota:build": "react-native-nitro-update build --platform ios",
+    "ota:build:upload": "react-native-nitro-update build --platform ios --upload s3",
     "ota:zip": "bash scripts/build-ota-zip-ios.sh",
-    "setupOTA": "node -e \"var p=require('path');var r=require.resolve('react-native-nitro-update/package.json');require(p.join(p.dirname(r),'bin/setup-ota.js'))\"",
+    "setupOTA": "setup-ota",
     "start": "react-native start",
     "test": "jest"
   },
@@ -18,7 +18,7 @@
     "react-native": "0.84.1",
     "@react-native/new-app-screen": "0.84.1",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-nitro-update": "file:../packages/react-native-nitro-update",
+    "react-native-nitro-update": "0.0.5",
     "react-native-nitro-modules": "0.35.0"
   },
   "devDependencies": {

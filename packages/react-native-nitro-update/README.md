@@ -12,7 +12,7 @@ yarn add react-native-nitro-update
 bun add react-native-nitro-update
 ```
 
-**Peer dependencies:** `react`, `react-native`. The package depends on `react-native-nitro-modules` and will install it automatically. The repo supports **Bun** (`bun install`, `bun run <script>`); root `package.json` sets `packageManager` for Bun.
+**Peer dependencies:** `react`, `react-native`, `react-native-nitro-modules` (install this explicitly in your app). The repo supports **Bun** (`bun install`, `bun run <script>`); root `package.json` sets `packageManager` for Bun.
 
 **Quick setup (interactive wizard)** — after installing:
 

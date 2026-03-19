@@ -6,7 +6,9 @@ module.exports = {
       /**
        * @type {import('@react-native-community/cli-types').IOSDependencyParams}
        */
-      ios: {},
+      ios: {
+        podspecPath: 'NitroUpdate.podspec',
+      },
       /**
        * @type {import('@react-native-community/cli-types').AndroidDependencyParams}
        */

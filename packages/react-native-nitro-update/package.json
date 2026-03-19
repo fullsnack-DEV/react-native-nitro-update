@@ -24,6 +24,7 @@
     "bin",
     "src",
     "lib",
+    "INTEGRATION.md",
     "react-native.config.js",
     "nitrogen",
     "android/build.gradle",

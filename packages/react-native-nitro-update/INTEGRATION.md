@@ -14,7 +14,15 @@ npm install react-native-nitro-update
 yarn add react-native-nitro-update
 ```
 
-**Peer dependencies:** `react`, `react-native`. The library brings in `react-native-nitro-modules` automatically.
+**Peer dependencies:** `react`, `react-native`, `react-native-nitro-modules`.
+
+Install Nitro Modules explicitly in your app:
+
+```bash
+npm install react-native-nitro-modules
+# or
+yarn add react-native-nitro-modules
+```
 
 ---
 
