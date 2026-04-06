@@ -2,27 +2,44 @@
 
 Follow these steps to add OTA updates to **any** React Native app.
 
+**Package on npm:** [react-native-nitro-update](https://www.npmjs.com/package/react-native-nitro-update)
+
 ---
 
 ## 1. Install
 
-In your project root:
+In your project root, install the library **and** the required peer **`react-native-nitro-modules`** (npm does not auto-install peers):
 
 ```bash
-npm install react-native-nitro-update
-# or
-yarn add react-native-nitro-update
+npm install react-native-nitro-update react-native-nitro-modules
+```
+
+```bash
+yarn add react-native-nitro-update react-native-nitro-modules
+```
+
+```bash
+bun add react-native-nitro-update react-native-nitro-modules
 ```
 
 **Peer dependencies:** `react`, `react-native`, `react-native-nitro-modules`.
 
-Install Nitro Modules explicitly in your app:
+**After install:** run `npx react-native-nitro-update doctor` from your app root to verify Podfile, native loaders, and dependencies.
 
-```bash
-npm install react-native-nitro-modules
-# or
-yarn add react-native-nitro-modules
-```
+---
+
+## 1.1 Golden path: React Native 0.76+ (New Architecture default template)
+
+If your app uses the current default **Swift `RCTDefaultReactNativeFactoryDelegate`** (or equivalent) and Android **`getDefaultReactHost`**, copy the same wiring as the reference app (paths are from the library repo on GitHub):
+
+| Platform | Reference file |
+|----------|----------------|
+| **iOS** | [example/ios/NitroUpdateExample/AppDelegate.swift](https://github.com/fullsnack-DEV/react-native-nitro-update/blob/main/example/ios/NitroUpdateExample/AppDelegate.swift) — `import NitroUpdateBundleManager`, delegate `bundleURL()` prefers `NitroUpdateBundleManager.getStoredBundleURL()` in release |
+| **Android** | [example/android/app/src/main/java/com/nitroupdateexample/MainApplication.kt](https://github.com/fullsnack-DEV/react-native-nitro-update/blob/main/example/android/app/src/main/java/com/nitroupdateexample/MainApplication.kt) — pass `jsBundleFilePath = NitroUpdateBundleLoader.getStoredBundlePath(this)` into `getDefaultReactHost` |
+
+Monorepo clones can open the same files under `example/` in this repository.
+
+**Expo:** OTA requires **custom native code** (Podfile + bundle URL hooks). Use a **development build** / `expo prebuild` and apply the same native steps as a bare React Native app, or stay on **EAS Update** for managed workflows. This library does not ship an Expo config plugin yet.
 
 ---
 
@@ -142,22 +159,31 @@ See the [example Podfile](../../example/ios/Podfile) for a working reference.
 
 ## 3. Android native setup
 
-When creating the React Native host (e.g. in `MainApplication` or wherever you set the JS bundle path), use the stored OTA path when available:
+The library exposes `NitroUpdateBundleLoader.getStoredBundlePath(context)`; you must pass that path (when non-null) into whatever API loads the JS bundle for **release** builds.
+
+### 3.1 New Architecture default (`getDefaultReactHost`, RN 0.76+)
+
+Use the same pattern as the [example `MainApplication.kt`](https://github.com/fullsnack-DEV/react-native-nitro-update/blob/main/example/android/app/src/main/java/com/nitroupdateexample/MainApplication.kt):
 
 ```kotlin
+import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.margelo.nitro.nitroupdate.NitroUpdateBundleLoader
 
-// When building the bundle path for release:
-val bundlePath = NitroUpdateBundleLoader.getStoredBundlePath(context)
-if (bundlePath != null) {
-  // Load JS bundle from this path (exact API depends on your RN / New Arch setup)
-  // e.g. pass bundlePath to your ReactNativeHost or ReactHost configuration
-} else {
-  // Load from assets or default location
+override val reactHost: ReactHost by lazy {
+  getDefaultReactHost(
+    context = applicationContext,
+    packageList = PackageList(this).packages,
+    jsBundleFilePath = NitroUpdateBundleLoader.getStoredBundlePath(this),
+  )
 }
 ```
 
-The exact code depends on your React Native version and whether you use the New Architecture. The library only provides `getStoredBundlePath(context)`; your app must pass that path into the place that loads the JS bundle.
+When there is no OTA bundle yet, `getStoredBundlePath` returns `null` and React Native falls back to the embedded bundle.
+
+### 3.2 Older `ReactNativeHost` templates
+
+Override `getJSBundleFile()` (or your template’s equivalent) so that in release you return `NitroUpdateBundleLoader.getStoredBundlePath(this)` when non-null, otherwise the default asset bundle path.
+
 `getStoredBundlePath(context)` includes the same automatic pending-validation crash recovery on Android.
 
 ---
@@ -320,11 +346,12 @@ Then upload `version.txt` and `bundle.zip` to your release or CDN. The library e
 
 | Step | What to do |
 |------|------------|
-| 1 | `npm install react-native-nitro-update` |
-| 2 | iOS: Add `NitroUpdateBundleManager` pod and implement `bundleURL()` to prefer OTA bundle in release |
-| 3 | Android: Use `NitroUpdateBundleLoader.getStoredBundlePath(context)` when loading the JS bundle in release |
-| 4 | JS: Call `checkForUpdate` → `downloadUpdate` after launch (e.g. in `useEffect` + `InteractionManager`), **without** calling `reloadApp()` |
-| 5 | Host `version.txt` and `bundle.zip` (e.g. GitHub Releases or your CDN) |
-| 6 | Build the zip: `npx react-native-nitro-update build --platform ios` (or manual `react-native bundle` + `zip`), then upload for each new OTA version |
+| 1 | `npm install react-native-nitro-update react-native-nitro-modules` (required peer) |
+| 2 | Optional: `npx react-native-nitro-update bootstrap` → writes **`OTA_BOOTSTRAP.md`** (native checklist). Run **`npx react-native-nitro-update doctor`** to verify. |
+| 3 | iOS: Add `NitroUpdateBundleManager` pod + `NitroUpdatePodUtils.apply!`; implement `bundleURL()` to prefer OTA bundle in release (see §1.1 golden path for RN 0.76+) |
+| 4 | Android: Pass `NitroUpdateBundleLoader.getStoredBundlePath(context)` into `jsBundleFilePath` for `getDefaultReactHost` (RN 0.76+), or equivalent for older hosts |
+| 5 | JS: Call `checkForUpdate` → `downloadUpdate` after launch (e.g. in `useEffect` + `InteractionManager`), **without** calling `reloadApp()` if you want next-launch apply |
+| 6 | Host `version.txt` and `bundle.zip` (e.g. GitHub Releases or your CDN) |
+| 7 | Build the zip: `npx react-native-nitro-update build --platform ios` (or manual `react-native bundle` + `zip`), then upload for each new OTA version |
 
 Result: users get the update in the background; the new bundle is used on the **next** app cold start.

@@ -225,6 +225,12 @@ async function main() {
   generateBuildScript(appDir, config)
   generateFastfile(appDir, config)
   ensureIosPodfileNitroSetup(appDir)
+  const { writeOtaBootstrap } = require('../scripts/ota-bootstrap.js')
+  writeOtaBootstrap(appDir, {
+    baseUrl: config.publicBaseUrl,
+    sourceTag: 'npx react-native-nitro-update setup',
+    quiet: false,
+  })
   printCodeSnippet(config)
   printNextSteps(config)
 
@@ -683,9 +689,7 @@ function printNextSteps(config) {
 
   const steps = []
 
-  steps.push('1. Wire native so the app loads OTA bundle when present:')
-  steps.push('   iOS:     In AppDelegate, use NitroUpdateBundleManager.getStoredBundleURL()')
-  steps.push('   Android: In MainApplication, use NitroUpdateBundleLoader.getStoredBundlePath(context)')
+  steps.push('1. Follow OTA_BOOTSTRAP.md (Podfile, iOS bundle URL, Android jsBundleFilePath for RN 0.76+).')
 
   steps.push('')
   steps.push('2. Add the code snippet above to your App.tsx')

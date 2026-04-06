@@ -50,7 +50,7 @@ ${DIM}Checking your project setup...${RESET}
     this.checkReactNativeVersion()
     this.checkNitroModulesVersion()
     this.checkiOSPodfile()
-    this.checkiOSAppDelegate()
+    this.checkIOSOtaBundleLoading()
     this.checkAndroidMainApplication()
     this.checkSwiftSettings()
     this.checkMetroConfig()
@@ -219,41 +219,103 @@ ${DIM}Checking your project setup...${RESET}
     }
   }
 
-  checkiOSAppDelegate() {
+  /**
+   * @returns {{ major: number, minor: number, raw: string } | null}
+   */
+  getReactNativeSemver() {
+    const pkgPath = path.join(this.projectRoot, 'package.json')
+    if (!fs.existsSync(pkgPath)) return null
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+      const v = deps['react-native']
+      if (!v || typeof v !== 'string') return null
+      const cleaned = v.replace(/^[\^~>=<]+\s*/, '')
+      const m = cleaned.match(/^(\d+)\.(\d+)/)
+      if (!m) return null
+      return { major: parseInt(m[1], 10), minor: parseInt(m[2], 10), raw: v }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Swift / ObjC sources under ios/, excluding Pods and build outputs.
+   * @param {string} iosDir
+   * @returns {string[]}
+   */
+  findIosNativeSourceFiles(iosDir) {
+    const results = []
+    const skipDirs = new Set(['Pods', 'build', 'DerivedData', 'node_modules', '.git'])
+
+    const walk = (dir) => {
+      let entries
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        if (skipDirs.has(entry.name)) continue
+        const fullPath = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(fullPath)
+        } else if (/\.(swift|m|mm)$/.test(entry.name)) {
+          results.push(fullPath)
+        }
+      }
+    }
+
+    walk(iosDir)
+    return results
+  }
+
+  iosFileIndicatesOta(content) {
+    return (
+      content.includes('NitroUpdateBundleManager') ||
+      content.includes('NitroUpdateBundleManagerObjC') ||
+      content.includes('getStoredBundleURL')
+    )
+  }
+
+  checkIOSOtaBundleLoading() {
     const iosDir = path.join(this.projectRoot, 'ios')
     if (!fs.existsSync(iosDir)) return
 
     const appDelegateFiles = this.findFiles(iosDir, /AppDelegate\.(swift|mm?)$/)
+    const sourceFiles = this.findIosNativeSourceFiles(iosDir)
 
-    if (appDelegateFiles.length === 0) {
-      this.addResult('ios-app-delegate', 'warning', 'AppDelegate not found')
-      this.log(WARN, 'AppDelegate not found')
+    if (sourceFiles.length === 0) {
+      this.addResult('ios-app-delegate', 'warning', 'No iOS .swift/.m/.mm sources found under ios/')
+      this.log(WARN, 'No iOS native sources found')
       return
     }
 
-    let foundBundleManager = false
-    for (const file of appDelegateFiles) {
+    let foundFile = null
+    for (const file of sourceFiles) {
       const content = fs.readFileSync(file, 'utf8')
-      if (
-        content.includes('NitroUpdateBundleManager') ||
-        content.includes('getStoredBundleURL')
-      ) {
-        foundBundleManager = true
+      if (this.iosFileIndicatesOta(content)) {
+        foundFile = file
         break
       }
     }
 
-    if (foundBundleManager) {
-      this.addResult('ios-app-delegate', 'ok', 'AppDelegate wired for OTA')
-      this.log(CHECK, 'AppDelegate uses NitroUpdateBundleManager')
+    if (foundFile) {
+      const short = path.relative(this.projectRoot, foundFile)
+      this.addResult('ios-app-delegate', 'ok', `OTA bundle loading referenced in ${short}`)
+      this.log(CHECK, `iOS OTA wiring found (${short})`)
     } else {
       this.addResult(
         'ios-app-delegate',
         'error',
-        'AppDelegate not wired for OTA bundle loading',
-        `In AppDelegate, use NitroUpdateBundleManager.getStoredBundleURL() for release builds`
+        'No OTA bundle loading found under ios/ (searched .swift/.m/.mm excluding Pods)',
+        `Add NitroUpdateBundleManager.getStoredBundleURL() in release bundleURL() (see INTEGRATION.md). RN 0.76+ often uses a *Delegate class next to AppDelegate.swift.`
       )
-      this.log(FAIL, 'AppDelegate missing OTA bundle loading')
+      this.log(FAIL, 'iOS OTA bundle loading not found in native sources')
+    }
+
+    if (appDelegateFiles.length === 0 && !this.jsonOutput) {
+      this.log(WARN, 'No file named AppDelegate.swift/mm/m — if OTA fails, confirm bundleURL() runs in your RN entry delegate')
     }
   }
 
@@ -273,27 +335,57 @@ ${DIM}Checking your project setup...${RESET}
       return
     }
 
+    const rn = this.getReactNativeSemver()
+    const strictReactHost =
+      rn !== null && rn.major === 0 && rn.minor >= 76
+
     let foundBundleLoader = false
+    let reactHostOtaOk = true
+    let reactHostIssueFile = null
+
     for (const file of mainAppFiles) {
       const content = fs.readFileSync(file, 'utf8')
-      if (
-        content.includes('NitroUpdateBundleLoader') ||
-        content.includes('getStoredBundlePath')
-      ) {
+      const hasLoader =
+        content.includes('NitroUpdateBundleLoader') || content.includes('getStoredBundlePath')
+      const usesDefaultReactHost = /\bgetDefaultReactHost\b/.test(content)
+      const passesJsBundleFilePath = content.includes('jsBundleFilePath')
+
+      if (hasLoader) {
         foundBundleLoader = true
-        break
+      }
+
+      if (strictReactHost && usesDefaultReactHost) {
+        if (!hasLoader || !passesJsBundleFilePath) {
+          reactHostOtaOk = false
+          reactHostIssueFile = file
+        }
       }
     }
 
-    if (foundBundleLoader) {
+    if (strictReactHost && !reactHostOtaOk && reactHostIssueFile) {
+      this.addResult(
+        'android-react-host-ota',
+        'error',
+        'getDefaultReactHost used but OTA path not passed as jsBundleFilePath',
+        `Pass jsBundleFilePath = NitroUpdateBundleLoader.getStoredBundlePath(this) into getDefaultReactHost(...) (RN ${rn.raw}). See INTEGRATION.md §3.1 and the library example MainApplication.kt.`
+      )
+      this.log(
+        FAIL,
+        `Android: getDefaultReactHost without jsBundleFilePath + NitroUpdateBundleLoader (${path.relative(this.projectRoot, reactHostIssueFile)})`
+      )
+    }
+
+    const otaAndroidPass = foundBundleLoader && (!strictReactHost || reactHostOtaOk)
+
+    if (otaAndroidPass) {
       this.addResult('android-main-application', 'ok', 'MainApplication wired for OTA')
       this.log(CHECK, 'MainApplication uses NitroUpdateBundleLoader')
-    } else {
+    } else if (!foundBundleLoader) {
       this.addResult(
         'android-main-application',
         'error',
         'MainApplication not wired for OTA bundle loading',
-        `In MainApplication, use NitroUpdateBundleLoader.getStoredBundlePath(context) for the JS bundle path`
+        `In MainApplication, use NitroUpdateBundleLoader.getStoredBundlePath(context) for the JS bundle path (see INTEGRATION.md §3).`
       )
       this.log(FAIL, 'MainApplication missing OTA bundle loading')
     }
@@ -462,21 +554,24 @@ ${DIM}Checking your project setup...${RESET}
   }
 }
 
-async function main() {
-  const args = process.argv.slice(2)
-  const jsonOutput = args.includes('--json')
+/**
+ * @param {string[]} argv Arguments after the `doctor` subcommand (e.g. ['--json']).
+ * @returns {Promise<number>} Exit code (0 = success, 1 = errors).
+ */
+async function runDoctorCli(argv) {
+  const jsonOutput = argv.includes('--json')
   const projectRoot = process.cwd()
-
   const doctor = new Doctor(projectRoot, { json: jsonOutput })
-  const exitCode = await doctor.run()
-  process.exit(exitCode)
+  return doctor.run()
 }
 
-module.exports = { Doctor }
+module.exports = { Doctor, runDoctorCli }
 
 if (require.main === module) {
-  main().catch((err) => {
-    console.error(`${RED}Error: ${err.message}${RESET}`)
-    process.exit(1)
-  })
+  runDoctorCli(process.argv.slice(2))
+    .then((exitCode) => process.exit(exitCode))
+    .catch((err) => {
+      console.error(`${RED}Error: ${err.message}${RESET}`)
+      process.exit(1)
+    })
 }

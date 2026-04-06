@@ -32,6 +32,16 @@ npm run ios
 
 Start Metro first if needed: `npm start` (from root or example).
 
+## Integration check
+
+From this directory:
+
+```bash
+npx react-native-nitro-update doctor
+```
+
+CI on the monorepo runs `doctor --json` here to ensure Podfile, native OTA loaders, and peers stay correct.
+
 ## What it does
 
 - Shows **stored OTA version** (if any).

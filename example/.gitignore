@@ -62,6 +62,9 @@ ota-output/
 # OTA secrets (copy .env.ota.example to .env.ota)
 .env.ota
 
+# Generated native checklist (npx react-native-nitro-update bootstrap)
+OTA_BOOTSTRAP.md
+
 # Ruby / CocoaPods
 **/Pods/
 /vendor/bundle/

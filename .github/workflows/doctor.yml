@@ -1,0 +1,26 @@
+# Ensures the example app stays wired correctly for OTA (Podfile, native loaders, peers).
+name: Doctor
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install workspaces
+        run: npm ci
+
+      - name: Run doctor on example app (JSON)
+        working-directory: example
+        run: npx react-native-nitro-update doctor --json

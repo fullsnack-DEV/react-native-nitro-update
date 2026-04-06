@@ -12,10 +12,10 @@ Step-by-step guide to add OTA updates to any React Native app using `react-nativ
 In the **current project** root (the app where OTA will be added):
 
 ```bash
-npm install react-native-nitro-update
+npm install react-native-nitro-update react-native-nitro-modules
 ```
 
-No separate nitro package: the library installs `react-native-nitro-modules` automatically.
+`react-native-nitro-modules` is a **required peer** — install it explicitly (npm does not auto-install peers).
 
 ## 2. iOS
 

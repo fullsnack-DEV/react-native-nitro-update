@@ -27,6 +27,18 @@ Thank you for considering contributing. Here’s how to get started.
    - `npm run specs --prefix packages/react-native-nitro-update` — regenerate Nitro specs (after changing `.nitro.ts` specs)
    - Typecheck and lint are in `packages/react-native-nitro-update`; run them from that directory or via your IDE
 
+## CI (Doctor)
+
+The **[Doctor workflow](.github/workflows/doctor.yml)** runs `npx react-native-nitro-update doctor --json` from **`example/`** on every push and pull request to `main`. It fails if the example drops Podfile wiring, native OTA loaders, or peer dependencies.
+
+To run the same check locally:
+
+```bash
+cd example
+npx react-native-nitro-update doctor
+npx react-native-nitro-update doctor --json
+```
+
 ## Submitting changes
 
 1. Open an **Issue** to discuss larger changes or API design.
@@ -67,7 +79,7 @@ Before publishing a new version:
    npm pack
    # In a test RN app:
    npm install /path/to/react-native-nitro-update-x.x.x.tgz
-   npx setup-ota doctor  # Should pass all checks
+   npx react-native-nitro-update doctor  # Should pass all checks
    ```
 
 4. **Build and test example app**
@@ -94,8 +106,8 @@ Before publishing a new version:
 
 Run the doctor command to diagnose issues:
 ```bash
-npx setup-ota doctor
-npx setup-ota doctor --json  # For CI
+npx react-native-nitro-update doctor
+npx react-native-nitro-update doctor --json  # For CI
 ```
 
 Common issues:

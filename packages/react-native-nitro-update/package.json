@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-update",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",
@@ -43,9 +43,12 @@
     "*.podspec",
     "scripts/nitro_update_pod_utils.rb",
     "scripts/run-cli.js",
-    "scripts/post-nitrogen-fix.sh"
+    "scripts/post-nitrogen-fix.sh",
+    "scripts/ota-bootstrap.js",
+    "scripts/postinstall-reminder.js"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall-reminder.js",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf android/build node_modules/**/android/build lib tsconfig.tsbuildinfo",
     "lint": "eslint \"**/*.{js,ts,tsx}\" --fix",
