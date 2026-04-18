@@ -36,7 +36,7 @@ abstract class HybridBundleUpdaterSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
-  abstract fun downloadUpdate(downloadUrl: String, bundlePathInZip: Variant_NullType_String?, checksum: Variant_NullType_String?): Promise<Unit>
+  abstract fun downloadUpdate(downloadUrl: String, bundlePathInZip: Variant_NullType_String?, checksum: Variant_NullType_String?, remoteVersion: Variant_NullType_String?): Promise<Unit>
   
   @DoNotStrip
   @Keep

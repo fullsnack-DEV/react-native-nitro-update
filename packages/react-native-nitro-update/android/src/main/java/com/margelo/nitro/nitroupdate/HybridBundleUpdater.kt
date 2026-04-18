@@ -94,10 +94,27 @@ class HybridBundleUpdater : HybridBundleUpdaterSpec() {
   override fun downloadUpdate(
     downloadUrl: String,
     bundlePathInZip: Variant_NullType_String?,
-    checksum: Variant_NullType_String?
+    checksum: Variant_NullType_String?,
+    remoteVersion: Variant_NullType_String?
   ): Promise<Unit> = Promise.async {
     val bundleSubpath = bundlePathInZip?.asSecondOrNull()
     val expectedChecksum = checksum?.asSecondOrNull()
+    val explicitRemote = remoteVersion?.asSecondOrNull()
+
+    if (!explicitRemote.isNullOrBlank()) {
+      val sanitized = sanitizeVersion(explicitRemote)
+      if (sanitized == null) {
+        throw Error("Invalid remoteVersion string")
+      }
+      val appVersion = getAppVersion()
+      if (!isRemoteVersionCompatibleWithCurrentApp(sanitized, appVersion)) {
+        throw Error("OTA version is not compatible with this app build")
+      }
+      if (OtaStorage.getBlacklist().contains(sanitized)) {
+        throw Error("OTA version is blacklisted")
+      }
+      OtaStorage.lastCheckedRemoteVersion = sanitized
+    }
 
     val url = URL(downloadUrl)
     val conn = url.openConnection() as HttpURLConnection

@@ -91,12 +91,28 @@ public final class HybridBundleUpdater: HybridBundleUpdaterSpec_base, HybridBund
   public func downloadUpdate(
     downloadUrl: String,
     bundlePathInZip: Variant_NullType_String?,
-    checksum: Variant_NullType_String?
+    checksum: Variant_NullType_String?,
+    remoteVersion: Variant_NullType_String?
   ) throws -> Promise<Void> {
     let bundleSubpath = unwrapOptionalString(bundlePathInZip)
     let expectedChecksum = unwrapOptionalString(checksum)
-    
+    let explicitRemote = unwrapOptionalString(remoteVersion)
+
     return Promise.async {
+      if let raw = explicitRemote {
+        guard let sanitized = sanitizeVersion(raw) else {
+          throw NitroUpdateError.otaRejected("Invalid remoteVersion string")
+        }
+        let appVersion = (try? self.getAppVersion()) ?? "0.0.0"
+        guard isRemoteVersionCompatibleWithCurrentApp(sanitized, appVersion: appVersion) else {
+          throw NitroUpdateError.otaRejected("OTA version is not compatible with this app build")
+        }
+        if OtaStorage.getBlacklist().contains(sanitized) {
+          throw NitroUpdateError.otaRejected("OTA version is blacklisted")
+        }
+        OtaStorage.lastCheckedRemoteVersion = sanitized
+      }
+
       guard let url = URL(string: downloadUrl) else {
         throw NitroUpdateError.invalidURL(downloadUrl)
       }
@@ -259,7 +275,8 @@ private enum NitroUpdateError: LocalizedError {
   case checksumMismatch
   case unzipFailed
   case decompressFailed
-  
+  case otaRejected(String)
+
   var errorDescription: String? {
     switch self {
     case .invalidURL(let url): return "Invalid URL: \(url)"
@@ -268,6 +285,7 @@ private enum NitroUpdateError: LocalizedError {
     case .checksumMismatch: return "Checksum mismatch"
     case .unzipFailed: return "Unzip failed"
     case .decompressFailed: return "Decompress failed"
+    case .otaRejected(let msg): return msg
     }
   }
 }

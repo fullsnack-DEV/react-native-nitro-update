@@ -78,8 +78,8 @@ namespace margelo::nitro::nitroupdate {
       auto __value = std::move(__result.value());
       return __value;
     }
-    inline std::shared_ptr<Promise<void>> downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum) override {
-      auto __result = _swiftPart.downloadUpdate(downloadUrl, bundlePathInZip, checksum);
+    inline std::shared_ptr<Promise<void>> downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum, const std::optional<std::variant<nitro::NullType, std::string>>& remoteVersion) override {
+      auto __result = _swiftPart.downloadUpdate(downloadUrl, bundlePathInZip, checksum, remoteVersion);
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }

@@ -11,11 +11,14 @@ interface BundleUpdater extends HybridObject<{ ios: 'swift'; android: 'kotlin' }
   /**
    * Downloads zip from downloadUrl, unzips, and stores the bundle.
    * Optional relative path to the bundle file inside the zip; optional checksum to verify after unzip.
+   * Pass `remoteVersion` when downloading without a prior `checkForUpdate` (e.g. single JSON OTA config)
+   * so the stored OTA label matches the server; otherwise native uses `lastCheckedRemoteVersion` from `checkForUpdate`.
    */
   downloadUpdate(
     downloadUrl: string,
     bundlePathInZip?: string | null,
-    checksum?: string | null
+    checksum?: string | null,
+    remoteVersion?: string | null
   ): Promise<void>
 
   /** Currently stored OTA version string, or null if none. */

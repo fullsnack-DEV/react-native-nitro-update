@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0+ota.example.1",
+  "bundleUrl": "https://your-cdn.example.com/ota/bundle.zip",
+  "checksum": "",
+  "minAppVersion": "1.0.0",
+  "bundlePathInZip": "index.ios.jsbundle"
+}

@@ -144,7 +144,7 @@ open class HybridBundleUpdaterSpec_cxx {
   }
   
   @inline(__always)
-  public final func downloadUpdate(downloadUrl: std.string, bundlePathInZip: bridge.std__optional_std__variant_nitro__NullType__std__string__, checksum: bridge.std__optional_std__variant_nitro__NullType__std__string__) -> bridge.Result_std__shared_ptr_Promise_void___ {
+  public final func downloadUpdate(downloadUrl: std.string, bundlePathInZip: bridge.std__optional_std__variant_nitro__NullType__std__string__, checksum: bridge.std__optional_std__variant_nitro__NullType__std__string__, remoteVersion: bridge.std__optional_std__variant_nitro__NullType__std__string__) -> bridge.Result_std__shared_ptr_Promise_void___ {
     do {
       let __result = try self.__implementation.downloadUpdate(downloadUrl: String(downloadUrl), bundlePathInZip: { () -> Variant_NullType_String? in
         if bridge.has_value_std__optional_std__variant_nitro__NullType__std__string__(bundlePathInZip) {
@@ -168,6 +168,25 @@ open class HybridBundleUpdaterSpec_cxx {
       }(), checksum: { () -> Variant_NullType_String? in
         if bridge.has_value_std__optional_std__variant_nitro__NullType__std__string__(checksum) {
           let __unwrapped = bridge.get_std__optional_std__variant_nitro__NullType__std__string__(checksum)
+          return { () -> Variant_NullType_String in
+            let __variant = bridge.std__variant_nitro__NullType__std__string_(__unwrapped)
+            switch __variant.index() {
+              case 0:
+                let __actual = __variant.get_0()
+                return .first(NullType.null)
+              case 1:
+                let __actual = __variant.get_1()
+                return .second(String(__actual))
+              default:
+                fatalError("Variant can never have index \(__variant.index())!")
+            }
+          }()
+        } else {
+          return nil
+        }
+      }(), remoteVersion: { () -> Variant_NullType_String? in
+        if bridge.has_value_std__optional_std__variant_nitro__NullType__std__string__(remoteVersion) {
+          let __unwrapped = bridge.get_std__optional_std__variant_nitro__NullType__std__string__(remoteVersion)
           return { () -> Variant_NullType_String in
             let __variant = bridge.std__variant_nitro__NullType__std__string_(__unwrapped)
             switch __variant.index() {

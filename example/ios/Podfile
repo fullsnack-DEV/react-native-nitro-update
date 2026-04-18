@@ -87,6 +87,12 @@ post_install do |installer|
     # Pods-NitroUpdateExample: compile dummy as Objective-C++ so C++ headers (Null.hpp) resolve
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
+        # Release + Simulator: build pod frameworks for all active archs so
+        # [CP] Embed Pods Frameworks can copy React.framework into the app (avoids dyld @rpath/React).
+        if config.name == 'Release'
+          config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
+        end
+
         cflags = config.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
         cflags = [cflags] if cflags.is_a?(String)
         unless cflags.any? { |f| f.to_s.include?('-UREACT_NATIVE_DEBUG') }

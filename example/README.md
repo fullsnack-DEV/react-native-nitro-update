@@ -32,6 +32,25 @@ npm run ios
 
 Start Metro first if needed: `npm start` (from root or example).
 
+### Release build on iOS Simulator (match production / test OTA)
+
+Daily development uses the **NitroUpdateExample** scheme (**Debug**). To run a **Release** build on the simulator (closer to TestFlight behavior):
+
+1. **Install pods** (picks up Podfile settings for Release simulator): `cd ios && pod install && cd ..`
+2. In Xcode: **Product → Scheme → NitroUpdateExample-Release**, pick a simulator, then **Product → Clean Build Folder** (⇧⌘K) and Run (⌘R).
+
+Or from the example directory (use the Release scheme so the CLI matches Xcode):
+
+```bash
+npx react-native run-ios --scheme NitroUpdateExample-Release
+```
+
+Some CLI versions also accept `--configuration Release` instead of `--scheme`; if in doubt, use Xcode with **NitroUpdateExample-Release** selected.
+
+The **NitroUpdateExample-Release** scheme is the same app target with **Run** set to the **Release** configuration. The Podfile sets `ONLY_ACTIVE_ARCH = NO` for **Release** pod targets so simulator slices build reliably.
+
+**`@rpath/React.framework/React` on Release simulator:** React Native’s prebuilt `React.framework` comes from the **React-Core-prebuilt** XCFramework. CocoaPods’ `[CP] Embed Pods Frameworks` script only copies Hermes + ReactNativeDependencies, but the app still links `-framework React`, so the example app includes an extra build phase **“Embed React.framework (RN prebuilt)”** that copies `${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework` into the app bundle. If you still see dyld errors, **Clean Build Folder** (⇧⌘K) and build again so the XCFramework intermediates exist before that phase runs.
+
 ## Integration check
 
 From this directory:

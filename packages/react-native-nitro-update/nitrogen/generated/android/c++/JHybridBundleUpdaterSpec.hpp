@@ -55,7 +55,7 @@ namespace margelo::nitro::nitroupdate {
   public:
     // Methods
     std::shared_ptr<Promise<bool>> checkForUpdate(const std::string& versionCheckUrl) override;
-    std::shared_ptr<Promise<void>> downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum) override;
+    std::shared_ptr<Promise<void>> downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum, const std::optional<std::variant<nitro::NullType, std::string>>& remoteVersion) override;
     std::variant<nitro::NullType, std::string> getStoredVersion() override;
     std::variant<nitro::NullType, std::string> getStoredBundlePath() override;
     std::string getAppVersion() override;

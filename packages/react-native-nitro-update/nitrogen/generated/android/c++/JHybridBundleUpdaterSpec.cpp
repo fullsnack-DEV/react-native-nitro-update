@@ -68,9 +68,9 @@ namespace margelo::nitro::nitroupdate {
       return __promise;
     }();
   }
-  std::shared_ptr<Promise<void>> JHybridBundleUpdaterSpec::downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum) {
-    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* downloadUrl */, jni::alias_ref<JVariant_NullType_String> /* bundlePathInZip */, jni::alias_ref<JVariant_NullType_String> /* checksum */)>("downloadUpdate");
-    auto __result = method(_javaPart, jni::make_jstring(downloadUrl), bundlePathInZip.has_value() ? JVariant_NullType_String::fromCpp(bundlePathInZip.value()) : nullptr, checksum.has_value() ? JVariant_NullType_String::fromCpp(checksum.value()) : nullptr);
+  std::shared_ptr<Promise<void>> JHybridBundleUpdaterSpec::downloadUpdate(const std::string& downloadUrl, const std::optional<std::variant<nitro::NullType, std::string>>& bundlePathInZip, const std::optional<std::variant<nitro::NullType, std::string>>& checksum, const std::optional<std::variant<nitro::NullType, std::string>>& remoteVersion) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* downloadUrl */, jni::alias_ref<JVariant_NullType_String> /* bundlePathInZip */, jni::alias_ref<JVariant_NullType_String> /* checksum */, jni::alias_ref<JVariant_NullType_String> /* remoteVersion */)>("downloadUpdate");
+    auto __result = method(_javaPart, jni::make_jstring(downloadUrl), bundlePathInZip.has_value() ? JVariant_NullType_String::fromCpp(bundlePathInZip.value()) : nullptr, checksum.has_value() ? JVariant_NullType_String::fromCpp(checksum.value()) : nullptr, remoteVersion.has_value() ? JVariant_NullType_String::fromCpp(remoteVersion.value()) : nullptr);
     return [&]() {
       auto __promise = Promise<void>::create();
       __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& /* unit */) {

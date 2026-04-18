@@ -126,7 +126,32 @@ Required when the package name is scoped (e.g. `@fullsnack-DEV/react-native-nitr
 
 ---
 
+## Publish from GitHub Actions (recommended if local publish fails)
+
+If your machine gets auth errors but you have access to the GitHub repo and an npm token:
+
+1. On [npmjs.com](https://www.npmjs.com/) → **Access Tokens** → create a **Granular Access Token** with **Read and write** for the package **`react-native-nitro-update`** (not only “read”).
+2. In the GitHub repo → **Settings** → **Secrets and variables** → **Actions** → add **`NPM_TOKEN`** with that token.
+3. Run workflow **Publish npm package** (Actions tab) with **dry run** unchecked.
+
+Optional: run the workflow once with **dry run** checked to validate the tarball without uploading.
+
+---
+
 ## Troubleshooting
+
+- **`npm ERR! 404 Not Found - PUT https://registry.npmjs.org/react-native-nitro-update`**  
+  The package [already exists on npm](https://www.npmjs.com/package/react-native-nitro-update). A **404 on PUT** usually means **you are not allowed to publish** this name (wrong account, read-only token, or missing collaborator), not that the name is available.
+
+  **Fix:**
+
+  1. Confirm you are a maintainer: `npm owner ls react-native-nitro-update` (you must appear in the list). If not, ask an existing owner to run:  
+     `npm owner add <your-npm-username> react-native-nitro-update`
+  2. Log in as the correct user: `npm whoami` then `npm login` if needed.
+  3. If you use an **access token** (CI or `.npmrc`), it must be **granular** with **Read and write** (publish) on **`react-native-nitro-update`**, not a read-only or wrong-scope token.
+  4. If your account has **2FA for publish**, pass a one-time code:  
+     `npm publish --otp=123456`  
+     (replace `123456` with your authenticator code).
 
 - **“You must sign up for npm”**  
   Run `npm login` and complete sign-in (including 2FA).

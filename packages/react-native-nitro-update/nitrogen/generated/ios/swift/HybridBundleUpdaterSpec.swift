@@ -14,7 +14,7 @@ public protocol HybridBundleUpdaterSpec_protocol: HybridObject {
 
   // Methods
   func checkForUpdate(versionCheckUrl: String) throws -> Promise<Bool>
-  func downloadUpdate(downloadUrl: String, bundlePathInZip: Variant_NullType_String?, checksum: Variant_NullType_String?) throws -> Promise<Void>
+  func downloadUpdate(downloadUrl: String, bundlePathInZip: Variant_NullType_String?, checksum: Variant_NullType_String?, remoteVersion: Variant_NullType_String?) throws -> Promise<Void>
   func getStoredVersion() throws -> Variant_NullType_String
   func getStoredBundlePath() throws -> Variant_NullType_String
   func getAppVersion() throws -> String

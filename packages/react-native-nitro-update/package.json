@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-update",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "OTA updates for React Native via Nitro/JSI: check, download, reload, rollback, checksum, retry, manifest",
   "main": "lib/index",
   "module": "lib/index",

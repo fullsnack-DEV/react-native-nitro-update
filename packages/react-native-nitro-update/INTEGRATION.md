@@ -214,6 +214,27 @@ const { versionUrl, downloadUrl } = githubOTA({
 
 Then use `versionUrl` and `downloadUrl` below.
 
+### 4.1.1 Version contract (avoid “update works once”)
+
+The native module stores **one active OTA label** (the remote version string). A new update is offered only when that label **changes** on the server.
+
+1. **Bump the version string on every OTA release**  
+   Update the contents of `version.txt` (or the `version` field in a JSON config) whenever you upload a new `bundle.zip`. If the remote string is unchanged, `checkForUpdate` correctly returns **no update** after the first successful install.
+
+2. **Two-URL flow: always `checkForUpdate` before `downloadUpdate`**  
+   `checkForUpdate(versionUrl)` fetches the remote string and sets native state used when persisting the bundle. Then call `downloadUpdate(downloadUrl)`. If you call `downloadUpdate` alone (without a prior check), pass the same version explicitly: `downloadUpdate(downloadUrl, null, null, remoteVersion)` so the stored label matches your server.
+
+3. **Single JSON URL (`checkAndDownloadFromConfig`)**  
+   If you host one file (e.g. `ota.json` with `version` + `bundleUrl`), the library passes `version` into native `downloadUpdate`, so the stored OTA label matches `version` without a separate `checkForUpdate` call.
+
+4. **`+ota` builds from the CLI**  
+   Default `version.txt` looks like `1.1.100+ota.100.202603191230`. The part **before** `+ota.` must equal the app’s **marketing version** (`CFBundleShortVersionString` / `versionName`). If you ship a new binary with a different short version, regenerate OTA zips whose prefix matches that version, or use a plain version string without `+ota` for those builds.
+
+5. **CDN caching**  
+   If `version.txt` appears stuck, purge CDN cache for that URL so clients see the new version string.
+
+**Related ecosystem:** Other Nitro-focused OTA packages (e.g. [react-native-nitro-ota](https://github.com/riteshshukla04/react-native-nitro-ota)) also separate **version check** from **download**. This library aligns with that idea; use `checkAndDownloadFromConfig` or `downloadUpdate(..., remoteVersion)` when your flow does not call `checkForUpdate` first.
+
 ### 4.2 Run OTA check after launch
 
 In your **root component** (e.g. `App.tsx`), run the check once after mount:

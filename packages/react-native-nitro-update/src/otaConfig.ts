@@ -92,7 +92,8 @@ export async function checkAndDownloadFromConfig(
   await bundleUpdater.downloadUpdate(
     config.bundleUrl,
     config.bundlePathInZip ?? null,
-    config.checksum ?? null
+    config.checksum ?? null,
+    config.version
   )
   if (reloadAfterDownload) {
     bundleUpdater.reloadApp()

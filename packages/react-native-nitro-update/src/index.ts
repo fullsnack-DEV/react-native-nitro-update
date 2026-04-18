@@ -46,14 +46,24 @@ export function checkForUpdate(versionCheckUrl: string): Promise<boolean> {
   return bundleUpdater.checkForUpdate(versionCheckUrl)
 }
 
+/**
+ * Download and install an OTA zip. Prefer calling {@link checkForUpdate} first; if you skip it,
+ * pass `remoteVersion` so the stored OTA label matches your server (required for `checkAndDownloadFromConfig`).
+ */
 export function downloadUpdate(
   downloadUrl: string,
   bundlePathInZip?: string | null,
-  checksum?: string | null
+  checksum?: string | null,
+  remoteVersion?: string | null
 ): Promise<void> {
   emit({ type: 'download_start' })
   return bundleUpdater
-    .downloadUpdate(downloadUrl, bundlePathInZip ?? null, checksum ?? null)
+    .downloadUpdate(
+      downloadUrl,
+      bundlePathInZip ?? null,
+      checksum ?? null,
+      remoteVersion ?? null
+    )
     .then(() => {
       emit({ type: 'download_done' })
     })
@@ -157,14 +167,15 @@ export async function downloadUpdateWithRetry(
   downloadUrl: string,
   options?: RetryOptions,
   bundlePathInZip?: string | null,
-  checksum?: string | null
+  checksum?: string | null,
+  remoteVersion?: string | null
 ): Promise<void> {
   const { maxRetries, initialDelayMs, maxDelayMs } = { ...defaultRetryOptions, ...options }
   let delay = initialDelayMs
   let lastErr: unknown
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      await downloadUpdate(downloadUrl, bundlePathInZip, checksum)
+      await downloadUpdate(downloadUrl, bundlePathInZip, checksum, remoteVersion)
       return
     } catch (err) {
       lastErr = err
@@ -221,13 +232,15 @@ export class UpdateManager {
   async downloadUpdate(
     onProgress?: (received: number, total: number) => void,
     bundlePathInZip?: string | null,
-    checksum?: string | null
+    checksum?: string | null,
+    remoteVersion?: string | null
   ): Promise<void> {
     if (onProgress) emit({ type: 'download_progress', received: 0, total: -1 })
     await downloadUpdate(
       this.downloadUrl,
       bundlePathInZip ?? undefined,
-      checksum ?? undefined
+      checksum ?? undefined,
+      remoteVersion ?? undefined
     )
   }
 
